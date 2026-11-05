@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#14161A" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Arsa" />
+  <meta name="description" content="Offline-first workout planner and tracker. Lift your way." />
+  <title>Arsa — Lift</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/session.css" />
+  <link rel="stylesheet" href="css/screens.css" />
+</head>
+<body>
+  <script>
+    // Set the theme attribute as the very first thing in <body>, before
+    // any content paints, by reading LocalStorage directly. This is a
+    // synchronous, blocking script placed deliberately early so the
+    // correct theme is in place before the browser renders anything —
+    // avoiding a flash of dark theme for light-theme users on load.
+    // App.applyTheme() (in app.js) re-applies this properly once the full
+    // app initializes, including any custom accent color; this inline
+    // script only handles the dark/light attribute to kill the flash.
+    (function () {
+      try {
+        var raw = localStorage.getItem('arsa-data-v1');
+        if (raw) {
+          var data = JSON.parse(raw);
+          if (data && data.settings && data.settings.theme === 'light') {
+            document.body.setAttribute('data-theme', 'light');
+          }
+        }
+      } catch (e) { /* App.applyTheme() corrects this shortly after anyway */ }
+    })();
+  </script>
+  <div id="app">
+    <!-- Screens -->
+    <div id="screen-dashboard" class="screen active"></div>
+    <div id="screen-workouts" class="screen"></div>
+    <div id="screen-library" class="screen"></div>
+    <div id="screen-progress" class="screen"></div>
+    <div id="screen-settings" class="screen"></div>
+
+    <!-- Active Workout Overlay -->
+    <div id="workout-session" class="session-overlay hidden"></div>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-screen="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span>Dashboard</span>
+      </button>
+      <button class="nav-btn" data-screen="workouts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4v16M18 4v16M2 8h4M18 8h4M2 16h4M18 16h4"/></svg>
+        <span>Workouts</span>
+      </button>
+      <button class="nav-btn" data-screen="library">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span>Library</span>
+      </button>
+      <button class="nav-btn" data-screen="progress">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span>Progress</span>
+      </button>
+      <button class="nav-btn" data-screen="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Modal Container -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div id="modal-container" class="modal-container"></div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="js/streak-engine.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/exercises-db.js"></script>
+  <script src="js/reminders.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/workouts.js"></script>
+  <script src="js/library.js"></script>
+  <script src="js/plate-calc.js"></script>
+  <script src="js/session.js"></script>
+  <script src="js/progress.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

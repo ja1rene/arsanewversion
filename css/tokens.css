@@ -1,0 +1,82 @@
+/* ARSA — Direction B tokens. Loads AFTER main.css and re-skins it through
+   variables, so existing class names and JS keep working. Fonts are
+   self-hosted (fonts/) so the app looks identical offline. */
+
+@font-face{font-family:'Archivo';font-weight:400;font-display:swap;src:url('../fonts/archivo-latin-400-normal.woff2') format('woff2')}
+@font-face{font-family:'Archivo';font-weight:500;font-display:swap;src:url('../fonts/archivo-latin-500-normal.woff2') format('woff2')}
+@font-face{font-family:'Archivo';font-weight:600;font-display:swap;src:url('../fonts/archivo-latin-600-normal.woff2') format('woff2')}
+@font-face{font-family:'Archivo';font-weight:700;font-display:swap;src:url('../fonts/archivo-latin-700-normal.woff2') format('woff2')}
+@font-face{font-family:'Martian Mono';font-weight:400;font-display:swap;src:url('../fonts/martian-mono-latin-400-normal.woff2') format('woff2')}
+@font-face{font-family:'Martian Mono';font-weight:500;font-display:swap;src:url('../fonts/martian-mono-latin-500-normal.woff2') format('woff2')}
+@font-face{font-family:'Martian Mono';font-weight:600;font-display:swap;src:url('../fonts/martian-mono-latin-600-normal.woff2') format('woff2')}
+
+:root{
+  --bg:#14161A; --bg-2:#1B1E23; --bg-3:#23272D; --border:#2C3037;
+  --text:#ECEBE6; --text-2:#9A9DA3; --text-3:#6B6F77;
+  --accent:#FFB224; --accent-light:#FFC553; --accent-glow:rgba(255,178,36,.16);
+  --on-accent:#14161A;
+  --green:#8FD18A; --green-light:#A6DDA1; --green-glow:rgba(143,209,138,.16);
+  --red:#F2705F; --amber:#FFB224; --amber-text:#14161A; --purple:#B79CFF;
+  --font-ui:'Archivo',system-ui,-apple-system,sans-serif;
+  --font-display:'Archivo',system-ui,-apple-system,sans-serif;
+  --font-mono:'Martian Mono',ui-monospace,Menlo,monospace;
+  --radius-sm:2px; --radius:2px; --radius-lg:2px; --radius-xl:2px;
+  --nav-h:60px; --accent-border-width:1px;
+}
+body[data-theme="light"]{
+  --bg:#F1F0EC; --bg-2:#FAF9F6; --bg-3:#E8E7E2; --border:#CFCDC6;
+  --text:#16181C; --text-2:#55585F; --text-3:#6F727A;
+  --accent:#16181C; --accent-light:#3A3D44; --accent-glow:rgba(22,24,28,.10);
+  --on-accent:#FFB224; --green:#2F7A35; --green-light:#2F7A35; --green-glow:rgba(47,122,53,.12);
+  --red:#B3321F; --amber:#16181C; --amber-text:#FFB224; --purple:#5B3FC4;
+}
+
+/* Typography: numbers are the content, so they get the mono face */
+body{letter-spacing:-.005em}
+.screen-title,.dashboard-name,.today-workout-name,.session-workout-name,.modal-title,.completion-title{letter-spacing:-.025em;font-weight:600}
+.stat-card-value,.stat-total-value,.summary-stat-val,.pr-value,.weight-log-val,.set-input,
+.session-timer,.rest-timer-value,.plate-total-value,.plate-count,.streak-ring-number{
+  font-family:var(--font-mono);font-variant-numeric:tabular-nums;letter-spacing:-.03em;font-weight:500}
+.section-label,.detail-section-title,.set-header-label,.plate-total-label,.streak-ring-label{
+  text-transform:none;letter-spacing:0;font-size:12px;font-weight:500}
+
+/* Hairline surfaces instead of striped cards */
+.stat-card,.stat-total-card,.summary-stat,.achievement-card,.workout-item,.session-exercise{
+  border:none;border-left:1px solid var(--border);border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);border-right:1px solid var(--border)}
+.session-exercise.active{border-left:2px solid var(--accent)}
+.session-exercise.completed{border-left:2px solid var(--text-3)}
+.today-workout-card{background:var(--accent)}
+.today-workout-card .today-workout-name{color:var(--on-accent)}
+.today-workout-card .today-workout-tag,.today-workout-card .today-workout-meta{color:var(--on-accent);opacity:.75}
+.today-workout-card.completed-today{background:var(--bg-2);border:1px solid var(--border)}
+.today-workout-card.completed-today .today-workout-tag{color:var(--accent-light);opacity:1}
+.today-workout-card.completed-today .today-workout-name{color:var(--text)}
+.today-workout-card.completed-today .today-workout-meta{color:var(--text-2);opacity:1}
+
+/* Buttons and chips: one radius, one accent, readable on-accent text */
+.btn-primary{color:var(--on-accent)}
+.btn-on-blue{background:var(--on-accent);color:var(--accent)}
+.btn-success{background:var(--accent);color:var(--on-accent)}
+.btn-danger{background:transparent;border:1px solid var(--red)}
+.filter-chip,.badge,.toast{border-radius:2px}
+.set-check.done{background:var(--accent);border-color:var(--accent)}
+.set-check.done svg,.set-check svg{color:var(--on-accent)}
+.pr-value{color:var(--accent-light)}
+.session-progress-fill{background:var(--accent)}
+
+/* Streak ring: single accent, no gradient */
+.streak-ring-fill{stroke:var(--accent)}
+.streak-ring-number{background:none;-webkit-text-fill-color:currentColor;color:var(--text)}
+
+/* Bottom nav: text only, active tick on top, theme-aware (was hardcoded dark) */
+.bottom-nav{background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none}
+.nav-btn{border-top:2px solid transparent;margin-top:-1px;gap:0}
+.nav-btn svg{display:none}
+.nav-btn span{font-size:12px;font-weight:500;letter-spacing:0}
+.nav-btn.active{color:var(--text);border-top-color:var(--accent)}
+
+/* Fixes */
+input,textarea,select{-webkit-user-select:text;user-select:text}
+:focus-visible{outline:2px solid var(--accent-light);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
