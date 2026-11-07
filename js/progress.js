@@ -382,17 +382,31 @@ const Progress = {
 
   _renderAchievements() {
     const stats = Store.getStats();
-    const unlockedCount = ACHIEVEMENTS.filter(a => Store.hasAchievement(a.id)).length;
+    const check = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 6.5l2.6 2.6L10 3.4"/></svg>';
+    const fmt = n => Number(n).toLocaleString();
+    const items = ACHIEVEMENTS.map(a => ({ a, on: Store.hasAchievement(a.id), p: achievementProgress(a, stats) }));
+    const unlockedCount = items.filter(i => i.on).length;
+
+    // The one closest to unlocking, so there is always a next target.
+    const next = items.filter(i => !i.on).sort((x, y) => y.p.pct - x.p.pct)[0];
+
+    const rows = (list) => list.map(({ a, on, p }) => `
+      <div class="pg-award ${on ? 'on' : ''}">
+        <span class="chk">${on ? check : ''}</span>
+        <span class="tx"><b>${resolveAchievementText(a, stats, 'name')}</b><small>${resolveAchievementText(a, stats, 'desc')}</small>
+          ${on ? '' : `<span class="pg-aw-bar" role="img" aria-label="${p.pct} percent"><i style="width:${p.pct}%"></i></span>`}
+        </span>
+        <span class="st num">${on ? 'Unlocked' : `${fmt(Math.min(p.value, p.target))} / ${fmt(p.target)}`}</span>
+      </div>`).join('');
+
     return `
       <div class="pg-sec"><span>Awards</span><span class="num">${unlockedCount} of ${ACHIEVEMENTS.length} unlocked</span></div>
-      ${ACHIEVEMENTS.map(a => {
-        const on = Store.hasAchievement(a.id);
-        return `
-        <div class="pg-award ${on ? 'on' : ''}">
-          <span class="chk">${on ? '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 6.5l2.6 2.6L10 3.4"/></svg>' : ''}</span>
-          <span class="tx"><b>${resolveAchievementText(a, stats, 'name')}</b><small>${resolveAchievementText(a, stats, 'desc')}</small></span>
-          <span class="st">${on ? 'Unlocked' : 'Locked'}</span>
-        </div>`;
+      ${next ? `<p class="db-note" style="padding-top:0">Next up: <b style="color:var(--text)">${resolveAchievementText(next.a, stats, 'name')}</b>, ${next.p.pct}% there.</p>` : ''}
+      ${ACHIEVEMENT_GROUPS.map(g => {
+        const list = items.filter(i => i.a.group === g);
+        if (!list.length) return '';
+        const got = list.filter(i => i.on).length;
+        return `<div class="pg-sec"><span>${g}</span><span class="num">${got} of ${list.length}</span></div>${rows(list)}`;
       }).join('')}`;
   },
 

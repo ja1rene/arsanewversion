@@ -151,3 +151,19 @@
 .sx-row:focus-visible, .sx-fold:focus-visible, .sx-step:focus-visible, .sx-go:focus-visible,
 .sx-mini:focus-visible, .sx-text:focus-visible, .sx-ghost:focus-visible, .sx-add:focus-visible,
 .sx-finish:focus-visible { outline: 2px solid var(--accent-light); outline-offset: 2px; }
+
+/* Quick fills in the live panel */
+.sx-chips { display: flex; gap: 8px; margin-bottom: 14px; }
+.sx-chip {
+  flex: 1; padding: 9px 8px; background: none; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 2px; color: var(--text-2);
+  font: 500 12px var(--font-ui); white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.sx-chip .num { color: var(--text); font-size: 12px; margin-left: 4px; }
+.sx-chip.up { border-color: var(--accent); }
+.sx-chip.up .num { color: var(--accent-light); }
+.sx-chip:active { background: var(--bg-3); }
+.sx-chip:focus-visible { outline: 2px solid var(--accent-light); outline-offset: 1px; }
+/* Planned numbers in pending rows read as a preview, not a result */
+.sx-row:not(.done) .v:nth-child(3) { color: var(--text-2); }

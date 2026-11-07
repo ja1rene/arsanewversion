@@ -235,3 +235,28 @@ button.st-row:active { background: var(--bg-2); }
 .wk-main:focus-visible, .wk-start:focus-visible, .bd-day:focus-visible, .bd-ex-main:focus-visible,
 .lb-row:focus-visible, .st-row:focus-visible, .sw:focus-visible, .pk-row:focus-visible,
 .ac-sw:focus-visible, .sc-add:focus-visible { outline: 2px solid var(--accent-light); outline-offset: -2px; }
+
+/* ---------- Skeleton loader ---------- */
+.skl-b { display: block; background: var(--bg-3); border-radius: 2px; position: relative; overflow: hidden; }
+.skl-b::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 8%, transparent), transparent);
+  transform: translateX(-100%); animation: skl-sweep 1.4s ease-in-out infinite;
+}
+@keyframes skl-sweep { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .skl-b::after { animation: none; } }
+.skl-top { display: flex; justify-content: space-between; align-items: center; padding: 22px 20px 18px; }
+.skl-today { padding: 18px 20px 20px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.skl-rows { margin-top: 6px; }
+.skl-row { display: flex; justify-content: space-between; padding: 15px 20px; border-bottom: 1px solid var(--border); }
+.skl-grid { margin: 26px 20px 0; height: 118px; border-radius: 2px; background:
+  repeating-linear-gradient(90deg, var(--bg-3) 0 22px, transparent 22px 25px); opacity: .6; -webkit-mask: repeating-linear-gradient(0deg, #000 0 14px, transparent 14px 17px); mask: repeating-linear-gradient(0deg, #000 0 14px, transparent 14px 17px); }
+
+/* Awards: progress */
+.pg-award { align-items: start; }
+.pg-award .chk { margin-top: 1px; }
+.pg-aw-bar { display: block; height: 3px; margin-top: 9px; background: var(--bg-3); border-radius: 1px; overflow: hidden; }
+.pg-aw-bar i { display: block; height: 100%; background: var(--text-3); }
+.pg-award .st { white-space: nowrap; }
+.pg-award { grid-template-columns: 22px 1fr 84px; }
+.pg-award .st { text-align: right; }

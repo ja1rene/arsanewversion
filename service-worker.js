@@ -8,7 +8,7 @@
    of what this can and can't guarantee).
    ============================================ */
 
-const CACHE_NAME = 'arsa-cache-v6';
+const CACHE_NAME = 'arsa-cache-v7';
 const APP_SHELL = [
   './',
   './index.html',
@@ -36,6 +36,8 @@ const APP_SHELL = [
   './js/progress.js',
   './js/settings.js',
   './js/app.js',
+  './icons/favicon.svg',
+  './icons/apple-touch-icon.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-192.png',

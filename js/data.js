@@ -330,12 +330,20 @@ const Store = {
     });
 
     let totalSets = 0, totalReps = 0, totalVolume = 0, trainingSeconds = 0;
+    let heaviestLift = 0, longestSession = 0;
+    const distinct = new Set();
+    const perMonth = {};
     history.forEach(h => {
       totalSets += h.totalSets || 0;
       trainingSeconds += h.duration || 0;
+      longestSession = Math.max(longestSession, h.duration || 0);
+      const mk = String(h.date).slice(0, 7);
+      perMonth[mk] = (perMonth[mk] || 0) + 1;
       (h.exercises || []).forEach(ex => {
+        if ((ex.sets || []).some(s => s.completed)) distinct.add(ex.exerciseId || ex.name);
         (ex.sets || []).forEach(s => {
           if (s.completed) {
+            heaviestLift = Math.max(heaviestLift, Number(s.weight) || 0);
             totalReps += Number(s.reps) || 0;
             totalVolume += (Number(s.weight) || 0) * (Number(s.reps) || 0);
           }
@@ -344,6 +352,7 @@ const Store = {
     });
 
     const streakInfo = this.getStreakInfo();
+    const bestMonthWorkouts = Math.max(0, ...Object.values(perMonth));
 
     return {
       totalWorkouts: history.length,
@@ -357,7 +366,16 @@ const Store = {
       totalReps,
       totalVolume,
       trainingHours: (trainingSeconds / 3600).toFixed(1),
-      totalExercises: this.getAllExercises().length
+      totalExercises: this.getAllExercises().length,
+      // Used by the awards
+      bestMonthWorkouts,
+      heaviestLift,
+      prCount: this.getAllPRs().length,
+      distinctExercises: distinct.size,
+      longestSessionMin: Math.round(longestSession / 60),
+      bodyWeightLogs: this.getWeightLogs().length,
+      customExercises: this.getAllExercises().filter(e => e.custom).length,
+      hasBackup: !!(this.data.meta && this.data.meta.lastExportAt)
     };
   },
 
@@ -486,35 +504,95 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ---- Achievement Definitions ----
+// Each award has a group, a name and description (plain strings, or functions
+// when the wording depends on units or streak mode), and a progress(stats)
+// that returns { value, target }. The award is earned when value >= target.
+// Locked awards use the same numbers to show how close you are.
+const _lbs = () => Store.data.settings.units === 'lbs';
+const _w = (kg, lbs) => _lbs() ? lbs : kg;                    // weight threshold by unit
+const _wl = (kg, lbs) => _lbs() ? `${lbs.toLocaleString()}lb` : `${kg.toLocaleString()}kg`;
+const _weekly = stats => stats.streakMode === 'rolling-average';
+
+function _count(id, group, name, desc, key, target) {
+  return { id, group, name, desc, progress: s => ({ value: Number(s[key]) || 0, target }) };
+}
+function _streak(id, n) {
+  return {
+    id, group: 'Consistency',
+    name: s => `${n} ${_weekly(s) ? 'Week' : 'Day'} Streak`,
+    desc: s => _weekly(s) ? `Hit your weekly target ${n} weeks running` : `Train ${n} training days in a row`,
+    progress: s => ({ value: s.longestStreak || 0, target: n })
+  };
+}
+function _volume(id, kg, lbs) {
+  return {
+    id, group: 'Volume',
+    name: () => `${_wl(kg, lbs)} Club`,
+    desc: () => `Lift ${_wl(kg, lbs)} total volume`,
+    progress: s => ({ value: Math.round(s.totalVolume), target: _w(kg, lbs) })
+  };
+}
+function _lift(id, kg, lbs, name) {
+  return {
+    id, group: 'Strength',
+    name: () => name || `First ${_wl(kg, lbs)} Lift`,
+    desc: () => `Lift ${_wl(kg, lbs)} in a single set`,
+    progress: s => ({ value: Math.round(s.heaviestLift), target: _w(kg, lbs) })
+  };
+}
+
+const ACHIEVEMENT_GROUPS = ['Milestones', 'Consistency', 'Volume', 'Strength', 'Work done', 'Variety and habits'];
+
 const ACHIEVEMENTS = [
-  { id: 'first_workout', name: 'First Lift', desc: 'Complete your first workout', icon: '🎯', check: stats => stats.totalWorkouts >= 1 },
-  {
-    id: 'streak_7',
-    icon: '🔥',
-    check: stats => stats.longestStreak >= 7,
-    name: stats => stats.streakMode === 'rolling-average' ? '7 Week Streak' : '7 Day Streak',
-    desc: stats => stats.streakMode === 'rolling-average' ? 'Hit your weekly target 7 weeks running' : 'Train 7 training days in a row'
-  },
-  {
-    id: 'streak_30',
-    icon: '⚡',
-    check: stats => stats.longestStreak >= 30,
-    name: stats => stats.streakMode === 'rolling-average' ? '30 Week Streak' : '30 Day Streak',
-    desc: stats => stats.streakMode === 'rolling-average' ? 'Hit your weekly target 30 weeks running' : 'Train 30 training days in a row'
-  },
-  { id: 'workouts_100', name: '100 Workouts', desc: 'Complete 100 workouts', icon: '💯', check: stats => stats.totalWorkouts >= 100 },
-  {
-    id: 'first_100kg', icon: '🏋️',
-    name: () => Store.data.settings.units === 'lbs' ? 'First 225lb Lift' : 'First 100kg Lift',
-    desc: () => Store.data.settings.units === 'lbs' ? 'Lift 225lb in a single set' : 'Lift 100kg in a single set',
-    check: () => Store.getAllPRs().some(p => p.maxWeight >= (Store.data.settings.units === 'lbs' ? 225 : 100))
-  },
-  {
-    id: 'volume_500k', icon: '🏆',
-    name: () => Store.data.settings.units === 'lbs' ? '1,100,000lb Club' : '500,000kg Club',
-    desc: () => Store.data.settings.units === 'lbs' ? 'Lift 1,100,000lb total volume' : 'Lift 500,000kg total volume',
-    check: stats => stats.totalVolume >= (Store.data.settings.units === 'lbs' ? 1100000 : 500000)
-  }
+  // Milestones
+  _count('first_workout', 'Milestones', 'First Lift', 'Complete your first workout', 'totalWorkouts', 1),
+  _count('workouts_10',  'Milestones', '10 Workouts',  'Complete 10 workouts',  'totalWorkouts', 10),
+  _count('workouts_25',  'Milestones', '25 Workouts',  'Complete 25 workouts',  'totalWorkouts', 25),
+  _count('workouts_50',  'Milestones', '50 Workouts',  'Complete 50 workouts',  'totalWorkouts', 50),
+  _count('workouts_100', 'Milestones', '100 Workouts', 'Complete 100 workouts', 'totalWorkouts', 100),
+  _count('workouts_250', 'Milestones', '250 Workouts', 'Complete 250 workouts', 'totalWorkouts', 250),
+  _count('workouts_500', 'Milestones', '500 Workouts', 'Complete 500 workouts', 'totalWorkouts', 500),
+
+  // Consistency
+  _streak('streak_3', 3),
+  _streak('streak_7', 7),
+  _streak('streak_14', 14),
+  _streak('streak_30', 30),
+  _streak('streak_60', 60),
+  _count('month_8',  'Consistency', 'Solid Month',   'Complete 8 workouts in one calendar month',  'bestMonthWorkouts', 8),
+  _count('month_16', 'Consistency', 'Machine Month', 'Complete 16 workouts in one calendar month', 'bestMonthWorkouts', 16),
+
+  // Volume
+  _volume('volume_10k',  10000, 22000),
+  _volume('volume_50k',  50000, 110000),
+  _volume('volume_100k', 100000, 220000),
+  _volume('volume_250k', 250000, 550000),
+  _volume('volume_500k', 500000, 1100000),
+  _volume('volume_1m',   1000000, 2200000),
+
+  // Strength
+  _lift('first_60kg',  60, 135),
+  _lift('first_100kg', 100, 225),
+  _lift('first_140kg', 140, 315),
+  _lift('first_180kg', 180, 405),
+  _count('pr_5',  'Strength', 'Record Setter', 'Hold personal records on 5 exercises',  'prCount', 5),
+  _count('pr_15', 'Strength', 'Record Keeper', 'Hold personal records on 15 exercises', 'prCount', 15),
+
+  // Work done
+  _count('sets_250',  'Work done', '250 Sets',    'Log 250 sets',    'totalSets', 250),
+  _count('sets_1000', 'Work done', '1,000 Sets',  'Log 1,000 sets',  'totalSets', 1000),
+  _count('reps_1000',  'Work done', '1,000 Reps',  'Log 1,000 reps',  'totalReps', 1000),
+  _count('reps_10000', 'Work done', '10,000 Reps', 'Log 10,000 reps', 'totalReps', 10000),
+  _count('hours_10', 'Work done', '10 Hours Under Load', 'Train for 10 hours in total', 'trainingHours', 10),
+  _count('hours_50', 'Work done', '50 Hours Under Load', 'Train for 50 hours in total', 'trainingHours', 50),
+
+  // Variety and habits
+  _count('variety_10', 'Variety and habits', 'Well Rounded',  'Log 10 different exercises',  'distinctExercises', 10),
+  _count('variety_25', 'Variety and habits', 'Full Toolbox',  'Log 25 different exercises',  'distinctExercises', 25),
+  _count('long_session', 'Variety and habits', 'Long Haul', 'Finish a session of 90 minutes or more', 'longestSessionMin', 90),
+  _count('bodyweight_5', 'Variety and habits', 'On the Scale', 'Log your body weight 5 times', 'bodyWeightLogs', 5),
+  _count('custom_ex', 'Variety and habits', 'Your Own Move', 'Add a custom exercise', 'customExercises', 1),
+  _count('backed_up', 'Variety and habits', 'Safe and Sound', 'Export a backup of your data', 'hasBackup', 1)
 ];
 
 // name/desc can be either a plain string or a function of stats (for
@@ -525,11 +603,17 @@ function resolveAchievementText(achievement, stats, field) {
   return typeof value === 'function' ? value(stats) : value;
 }
 
+// { value, target, done, pct } for one award.
+function achievementProgress(a, stats) {
+  const p = a.progress(stats);
+  return { value: p.value, target: p.target, done: p.value >= p.target, pct: Math.min(100, Math.round((p.value / p.target) * 100)) };
+}
+
 function checkAchievements() {
   const stats = Store.getStats();
   const newlyUnlocked = [];
   ACHIEVEMENTS.forEach(a => {
-    if (!Store.hasAchievement(a.id) && a.check(stats)) {
+    if (!Store.hasAchievement(a.id) && achievementProgress(a, stats).done) {
       Store.unlockAchievement(a.id);
       newlyUnlocked.push(a);
     }

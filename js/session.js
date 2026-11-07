@@ -211,6 +211,21 @@ const Session = {
     };
   },
 
+  // A sensible next step from last time: if the top of the rep range was hit,
+  // add weight and drop back to the low end; otherwise add a rep.
+  _progression(exIdx, setIdx) {
+    const prev = this._prevSet(exIdx, setIdx);
+    if (!prev) return null;
+    const m = String(this._workout.exercises[exIdx].repRange).match(/(\d+)\D+(\d+)/);
+    const single = parseInt(this._workout.exercises[exIdx].repRange, 10);
+    const low = m ? parseInt(m[1], 10) : single;
+    const top = m ? parseInt(m[2], 10) : single;
+    if (prev.weight > 0 && Number.isFinite(top) && prev.reps >= top) {
+      return { weight: this._round(prev.weight + this._weightStep()), reps: Number.isFinite(low) ? low : prev.reps };
+    }
+    return { weight: prev.weight, reps: prev.reps + 1 };
+  },
+
   _hintFor(exIdx, setIdx, weight) {
     if (!(weight > 0)) return 'Bodyweight';
     const prev = this._prevSet(exIdx, setIdx);
@@ -407,7 +422,12 @@ const Session = {
   _renderRow(i, j, s, isPR) {
     const prev = this._prevSet(i, j);
     const prevText = prev ? this._setText(prev.weight, prev.reps) : '–';
-    const todayText = s.completed ? this._setText(s.weight, s.reps) : '–';
+    // Pending sets show the numbers they will start with (last time, or the
+    // previous set from today), so only changes need typing.
+    const planned = !s.completed && (prev || (j > 0 && this._logs[i][j - 1].completed))
+      ? this._values(i, j) : null;
+    const todayText = s.completed ? this._setText(s.weight, s.reps)
+      : planned ? this._setText(planned.weight, planned.reps) : '–';
     const check = s.completed
       ? '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 6.5l2.6 2.6L10 3.4"/></svg>'
       : '';
@@ -436,6 +456,8 @@ const Session = {
           ${plates ? `<button class="sx-text" type="button" data-plates="${i}:${j}">Plates</button>` : ''}
         </div>
 
+        ${this._renderChips(i, j)}
+
         <div class="sx-dial">
           <button class="sx-step" type="button" data-step="weight" data-dir="-1" aria-label="Weight minus ${step}">−${step}</button>
           <label class="sx-read">
@@ -462,6 +484,37 @@ const Session = {
       </div>`;
   },
 
+  _renderChips(i, j) {
+    const prev = this._prevSet(i, j);
+    if (!prev) return '';
+    const next = this._progression(i, j);
+    const same = this._setText(prev.weight, prev.reps);
+    const step = this._setText(next.weight, next.reps);
+    return `
+        <div class="sx-chips">
+          <button class="sx-chip" type="button" data-fill="same">Same <span class="num">${same}</span></button>
+          <button class="sx-chip up" type="button" data-fill="next">Try <span class="num">${step}</span></button>
+        </div>`;
+  },
+
+  // Fills the dials from a chip. Nothing is saved until Log is tapped.
+  _applyFill(kind) {
+    const ex = this._openEx, set = this._focusSet;
+    if (set === null || set === undefined) return;
+    const v = kind === 'same' ? this._prevSet(ex, set) : this._progression(ex, set);
+    if (!v) return;
+    const w = document.getElementById('sx-weight');
+    const r = document.getElementById('sx-reps');
+    if (!w || !r) return;
+    w.value = v.weight; r.value = v.reps;
+    this._logs[ex][set].weight = v.weight;
+    this._logs[ex][set].reps = v.reps;
+    this._fitInputs();
+    this._updateHint(ex, set);
+    this._persistActiveSession();
+    this._buzz(8);
+  },
+
   // Size each readout to its digits so the unit label sits right next to it.
   _fitInputs() {
     document.querySelectorAll('.sx-num').forEach(el => {
@@ -478,6 +531,7 @@ const Session = {
       const t = e.target.closest('button');
       if (!t || !overlay.contains(t)) return;
 
+      if (t.dataset.fill) return this._applyFill(t.dataset.fill);
       if (t.dataset.step) return this._step(t.dataset.step, Number(t.dataset.dir));
       if (t.id === 'sx-log') return this._logSet(this._openEx, this._focusSet);
       if (t.id === 'sx-undo') return this._undoSet(this._openEx, this._focusSet);
@@ -878,7 +932,6 @@ const Session = {
               const desc = resolveAchievementText(a, stats, 'desc');
               return `
               <div class="achievement-card unlocked">
-                <div class="achievement-icon">${a.icon}</div>
                 <div class="achievement-name">${name}</div>
                 <div class="achievement-desc">${desc}</div>
               </div>
