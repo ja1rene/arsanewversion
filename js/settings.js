@@ -67,6 +67,12 @@ const Settings = {
       ${needsBackup ? `<p class="db-note">You have ${workoutCount} workouts logged and ${meta.lastExportAt ? 'no backup in the last 30 days' : 'no backup yet'}. Export one so a lost phone doesn't mean lost history.</p>` : ''}
       <input type="file" id="import-file-input" accept="application/json" style="display:none;">
 
+      <div class="pg-sec"><span>About</span></div>
+      <div class="st-row"><span class="lb"><span>Version</span></span><span class="val num" id="st-version">...</span></div>
+      ${row('check-update', 'Check for updates', '')}
+      ${row('whats-new', "What's new", '')}
+      ${row('coach-misses', 'Coach questions', Coach.getMisses().length ? Coach.getMisses().length + ' unanswered' : 'None', 'Questions Coach could not answer, saved on this device only')}
+
       <div class="form-section mt-8" style="padding-bottom: 8px;">
         <button class="bd-delete" type="button" data-action="reset">Reset all data</button>
       </div>
@@ -74,6 +80,10 @@ const Settings = {
     `;
 
     this._showPersistStatus();
+    Updater.version().then(v => {
+      const el = document.getElementById('st-version');
+      if (el) el.textContent = v || (typeof CHANGELOG !== 'undefined' ? CHANGELOG[0].version : '');
+    });
   },
 
   _themeLabel(t) {
@@ -118,6 +128,13 @@ const Settings = {
         case 'export': return this._exportData();
         case 'import': return document.getElementById('import-file-input').click();
         case 'reset': return this._confirmReset();
+        case 'whats-new': return this._openWhatsNew();
+        case 'coach-misses': return this._openCoachMisses();
+        case 'check-update': {
+          showToast('Checking for updates');
+          const r = await Updater.check();
+          return showToast({ available: 'Update ready, tap Reload', current: "You're on the latest version", offline: "Can't check while offline", installing: 'Downloading the update', unsupported: 'Updates are not supported here' }[r]);
+        }
 
         case 'toggle-plate-mode':
           s.plateMode = !s.plateMode;
@@ -312,6 +329,43 @@ const Settings = {
       this.render();
       showToast('Reminder time saved');
     });
+  },
+
+  _openCoachMisses() {
+    const list = Coach.getMisses();
+    openModal(`
+      <div class="modal-title">Questions Coach could not answer</div>
+      <div class="modal-body">
+        ${list.length
+          ? `<ul class="lb-list" style="padding-left:18px">${list.map(m => `<li>${esc(m.q)}</li>`).join('')}</ul>`
+          : '<p style="color:var(--text-2)">Nothing yet. Questions Coach cannot answer are saved here, on this device only, so the knowledge base can grow.</p>'}
+      </div>
+      <div class="modal-actions">
+        ${list.length ? '<button class="btn btn-outline" id="cm-clear">Clear</button><button class="btn btn-outline" id="cm-copy">Copy</button>' : ''}
+        <button class="btn btn-primary" id="cm-close">Close</button>
+      </div>
+    `);
+    document.getElementById('cm-close').addEventListener('click', closeModal);
+    const clear = document.getElementById('cm-clear');
+    if (clear) clear.addEventListener('click', () => { Coach.clearMisses(); closeModal(); this.render(); showToast('Cleared'); });
+    const copy = document.getElementById('cm-copy');
+    if (copy) copy.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(list.map(m => m.q).join('\n')); showToast('Copied'); }
+      catch (e) { showToast('Could not copy'); }
+    });
+  },
+
+  _openWhatsNew() {
+    openModal(`
+      <div class="modal-title">What's new</div>
+      <div class="modal-body">
+        ${CHANGELOG.map(r => `
+          <div class="pg-sec" style="padding-left:0;padding-right:0"><span>Version ${esc(r.version)}</span></div>
+          <ul class="lb-list" style="padding-left:18px">${r.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>`).join('')}
+      </div>
+      <div class="modal-actions"><button class="btn btn-primary" id="wn-close">Close</button></div>
+    `);
+    document.getElementById('wn-close').addEventListener('click', closeModal);
   },
 
   // ---------- Backup, restore, reset ----------

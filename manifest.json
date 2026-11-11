@@ -2,6 +2,7 @@
   "name": "Arsa — Lift",
   "short_name": "Arsa",
   "description": "Offline-first workout planner and tracker. Build your own routines, log fast, lift forever.",
+  "id": "./",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

@@ -11,10 +11,12 @@ const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 const Workouts = {
   _draft: null, // in-progress workout being built
+  _split: null, // { id, variant } while a training split is open
 
   render() {
     const screen = document.getElementById('screen-workouts');
     this._bindScreen(screen);
+    if (this._split) return this._renderSplit();
 
     const workouts = Store.getWorkouts();
     const history = Store.getHistory();
@@ -36,7 +38,96 @@ const Workouts = {
           ${workouts.map(w => this._renderWorkoutItem(w, history)).join('')}
         </div>
       `}
+
+      <div class="pg-sec"><span>Training splits</span><span>Ready-made programs</span></div>
+      <div class="wk-list">
+        ${SPLITS.map(sp => `
+          <div class="wk-row">
+            <button class="wk-main" type="button" data-split="${sp.id}">
+              <span class="nm">${esc(sp.name)}</span>
+              <span class="mt">${esc(sp.freq)}, ${esc(sp.level.toLowerCase())}</span>
+            </button>
+          </div>`).join('')}
+      </div>
+      <p class="db-note" style="padding-bottom:24px">Not sure where to start? Pick a split and Arsa adds the workouts for you. You can edit anything afterwards.</p>
     `;
+  },
+
+  // ---- TRAINING SPLITS ----
+  _renderSplit() {
+    const sp = SPLITS.find(s => s.id === this._split.id);
+    if (!sp) { this._split = null; return this.render(); }
+    const v = sp.variants[this._split.variant] || sp.variants[0];
+    const screen = document.getElementById('screen-workouts');
+    const dayText = (name) => (v.days[name] || []).length
+      ? WEEK_ORDER.filter(d => v.days[name].includes(d)).map(d => WEEKDAYS[d]).join(', ') : '';
+
+    // Days the new workouts will share with ones you already have.
+    const used = new Set();
+    Store.getWorkouts().forEach(w => (w.scheduledDays || []).forEach(d => used.add(d)));
+    const clash = new Set();
+    Object.values(v.days).forEach(list => list.forEach(d => { if (used.has(d)) clash.add(d); }));
+
+    screen.innerHTML = `
+      <button class="back-btn" id="btn-split-back" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+        Workouts
+      </button>
+      <h1 class="screen-title" style="padding-top:8px;">${esc(sp.name)}</h1>
+      <div class="pg-when">${esc(sp.freq)}, ${esc(sp.level.toLowerCase())}</div>
+      <p class="lb-p" style="padding-top:14px">${esc(sp.blurb)}</p>
+
+      ${sp.variants.length > 1 ? `
+        <div class="pg-sec"><span>Schedule</span></div>
+        <div class="bd-days" style="padding:0 20px" role="group" aria-label="Days per week">
+          ${sp.variants.map((x, i) => `<button class="bd-day" type="button" data-variant="${i}" aria-pressed="${i === this._split.variant}">${esc(x.label)}</button>`).join('')}
+        </div>` : ''}
+
+      ${sp.workouts.map(w => `
+        <div class="pg-sec"><span>${esc(w.name)}</span><span>${esc(dayText(w.name))}</span></div>
+        <div class="pg-ledger">
+          ${w.exercises.map(e => {
+            const lib = ExerciseDB.find(x => x.id === e.id);
+            return `<div class="pg-row"><span>${esc(lib ? lib.name : e.id)}</span><span class="num">${e.sets} × ${esc(e.reps)}</span></div>`;
+          }).join('')}
+        </div>`).join('')}
+
+      <div class="pg-sec"><span>How to progress</span></div>
+      <p class="lb-p">${esc(sp.tip)}</p>
+
+      <div style="padding:22px 20px 8px">
+        <button class="db-go" type="button" id="btn-add-split">Add ${sp.workouts.length} workouts</button>
+      </div>
+      <p class="bd-hint" style="padding:0 20px 28px">${clash.size ? `You already have workouts on ${WEEK_ORDER.filter(d => clash.has(d)).map(d => WEEKDAYS[d]).join(', ')}, so they will share those days. ` : ''}Weights start empty and fill in as you train. Nothing you have is changed or deleted.</p>
+    `;
+  },
+
+  _addSplit() {
+    const sp = SPLITS.find(s => s.id === this._split.id);
+    if (!sp) return;
+    const v = sp.variants[this._split.variant] || sp.variants[0];
+    const taken = new Set(Store.getWorkouts().map(w => w.name));
+
+    sp.workouts.forEach(w => {
+      let name = w.name, n = 2;
+      while (taken.has(name)) name = `${w.name} (${n++})`;
+      taken.add(name);
+      Store.createWorkout({
+        name,
+        description: `${sp.name} split`,
+        color: '#64748B',
+        icon: '',
+        scheduledDays: (v.days[w.name] || []).slice(),
+        exercises: w.exercises.map(e => {
+          const lib = ExerciseDB.find(x => x.id === e.id);
+          return { id: Store.uid(), exerciseId: e.id, name: lib ? lib.name : e.id, sets: e.sets, repRange: e.reps, restTime: e.rest, notes: '' };
+        })
+      });
+    });
+
+    this._split = null;
+    this.render();
+    showToast(`${sp.workouts.length} workouts added`);
   },
 
   _renderWorkoutItem(w, history) {
@@ -67,6 +158,10 @@ const Workouts = {
       if (!t || !screen.contains(t)) return;
       const d = this._draft;
 
+      if (t.dataset.split) { this._split = { id: t.dataset.split, variant: 0 }; this.render(); return screen.scrollTo(0, 0); }
+      if (t.id === 'btn-split-back') { this._split = null; return this.render(); }
+      if (t.dataset.variant !== undefined) { this._split.variant = Number(t.dataset.variant); return this._renderSplit(); }
+      if (t.id === 'btn-add-split') return this._addSplit();
       if (t.dataset.new !== undefined) return this.openBuilder();
       if (t.dataset.open) return this.openBuilder(t.dataset.open);
 

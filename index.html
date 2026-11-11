@@ -9,6 +9,9 @@
   <meta name="apple-mobile-web-app-title" content="Arsa" />
   <meta name="description" content="Offline-first workout planner and tracker. Lift your way." />
   <title>Arsa — Lift</title>
+  <!-- No white flash before CSS loads: paint the app background immediately -->
+  <style>html{background:#14161A}html[data-theme="light"]{background:#F1F0EC}</style>
+  <script>try{var d=JSON.parse(localStorage.getItem('arsa-data-v1'));if(d&&d.settings&&d.settings.theme==='light')document.documentElement.setAttribute('data-theme','light')}catch(e){}</script>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/svg+xml" href="icons/favicon.svg" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
@@ -16,6 +19,7 @@
   <link rel="stylesheet" href="css/tokens.css" />
   <link rel="stylesheet" href="css/session.css" />
   <link rel="stylesheet" href="css/screens.css" />
+  <link rel="stylesheet" href="css/coach.css" />
 </head>
 <body>
   <script>
@@ -99,6 +103,12 @@
   </div>
 
   <!-- Toast -->
+  <div id="update-banner" class="update-banner hidden" role="status">
+    <span>A new version of Arsa is ready.</span>
+    <button type="button" id="update-reload">Reload</button>
+    <button type="button" id="update-later" class="later" aria-label="Dismiss">Later</button>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
   <script src="js/streak-engine.js"></script>
@@ -106,12 +116,16 @@
   <script src="js/exercises-db.js"></script>
   <script src="js/reminders.js"></script>
   <script src="js/dashboard.js"></script>
+  <script src="js/splits.js"></script>
   <script src="js/workouts.js"></script>
   <script src="js/library.js"></script>
   <script src="js/plate-calc.js"></script>
   <script src="js/session.js"></script>
   <script src="js/progress.js"></script>
   <script src="js/settings.js"></script>
+  <script src="js/changelog.js"></script>
+  <script src="js/coach-kb.js"></script>
+  <script src="js/coach.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

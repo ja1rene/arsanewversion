@@ -1,0 +1,83 @@
+/* ============================================
+   ARSA — Coach (floating button and chat sheet)
+   ============================================ */
+
+.coach-fab {
+  position: fixed; right: 16px; z-index: 150;
+  bottom: calc(var(--nav-h) + var(--safe-bottom) + 16px);
+  display: flex; align-items: center; gap: 0;
+  height: 52px; min-width: 52px; padding: 0 14px;
+  background: var(--accent); color: var(--on-accent);
+  border: 0; border-radius: 2px; cursor: pointer;
+  box-shadow: 0 6px 22px rgba(0,0,0,.35);
+  font: 600 14px var(--font-ui);
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .12s;
+}
+.coach-fab:active { transform: scale(.96); }
+.coach-fab:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+.coach-fab .lbl { max-width: 0; overflow: hidden; white-space: nowrap; transition: max-width .3s, margin .3s; }
+.coach-fab.intro .lbl { max-width: 110px; margin-left: 10px; }
+body.coach-open .coach-fab { display: none; }
+
+.coach { position: fixed; inset: 0; z-index: 450; }
+.coach.hidden { display: none; }
+.coach-back { position: absolute; inset: 0; background: rgba(0,0,0,.55); }
+.coach-panel {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 88vh; height: 88dvh;
+  display: flex; flex-direction: column;
+  background: var(--bg); border-top: 1px solid var(--border);
+  box-shadow: 0 -10px 40px rgba(0,0,0,.35);
+  animation: coach-up .22s ease-out;
+}
+@keyframes coach-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .coach-panel { animation: none; } }
+
+.coach-head { display: flex; align-items: center; gap: 4px; padding: 14px 8px 12px 20px; border-bottom: 1px solid var(--border); }
+.coach-head .ti { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.coach-head .ti b { font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
+.coach-head .ti small { font-size: 12px; color: var(--text-3); }
+.coach-hbtn { background: none; border: 0; color: var(--text-2); font: 500 13px var(--font-ui); padding: 10px; cursor: pointer; border-radius: 2px; display: grid; place-items: center; min-width: 40px; min-height: 40px; }
+.coach-hbtn:active { background: var(--bg-3); }
+
+.coach-log { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px 16px 8px; display: flex; flex-direction: column; gap: 10px; }
+.cm { display: flex; }
+.cm-u { justify-content: flex-end; }
+.cm-b { max-width: 88%; padding: 11px 13px; border-radius: 2px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.cm-u .cm-b { background: var(--accent); color: var(--on-accent); }
+.cm-c .cm-b { background: var(--bg-2); border: 1px solid var(--border); color: var(--text); }
+.cm-c .cm-b p + p { margin-top: 8px; }
+.cm-c .cm-b b { font-weight: 600; }
+
+.cm-rows { margin-top: 10px; border-top: 1px solid var(--border); }
+.cm-rows > div { display: flex; justify-content: space-between; gap: 14px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.cm-rows > div > span:first-child { color: var(--text-2); }
+.cm-rows .num { text-align: right; white-space: nowrap; }
+
+.cm-act { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.cm-act button { background: none; border: 1px solid var(--accent); color: var(--text); padding: 8px 12px; border-radius: 2px; font: 500 13px var(--font-ui); cursor: pointer; }
+.cm-act button:active { background: var(--bg-3); }
+
+.dots { display: inline-flex; gap: 4px; padding: 4px 2px; }
+.dots i { width: 6px; height: 6px; background: var(--text-3); border-radius: 1px; animation: coach-dot 1s infinite; }
+.dots i:nth-child(2) { animation-delay: .15s; }
+.dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes coach-dot { 0%, 60%, 100% { opacity: .3; } 30% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .dots i { animation: none; opacity: .7; } }
+
+.coach-chips { display: flex; gap: 8px; overflow-x: auto; padding: 8px 16px 10px; scrollbar-width: none; }
+.coach-chips::-webkit-scrollbar { display: none; }
+.coach-chips:empty { display: none; }
+.coach-chip { flex-shrink: 0; background: none; border: 1px solid var(--border); color: var(--text-2); padding: 8px 12px; border-radius: 2px; font: 500 13px var(--font-ui); cursor: pointer; white-space: nowrap; }
+.coach-chip:active { background: var(--bg-3); color: var(--text); }
+
+.coach-form { display: flex; gap: 8px; padding: 8px 16px calc(12px + var(--safe-bottom)); border-top: 1px solid var(--border); }
+.coach-form input { flex: 1; min-width: 0; background: var(--bg-2); border: 1px solid var(--border); border-radius: 2px; color: var(--text); padding: 12px; font: 400 16px var(--font-ui); outline: none; }
+.coach-form input:focus { border-color: var(--accent); }
+.coach-form input::placeholder { color: var(--text-3); }
+.coach-send { width: 48px; background: var(--accent); color: var(--on-accent); border: 0; border-radius: 2px; cursor: pointer; display: grid; place-items: center; }
+.coach-send:active { transform: scale(.96); }
+.coach-hbtn:focus-visible, .coach-chip:focus-visible, .cm-act button:focus-visible, .coach-send:focus-visible { outline: 2px solid var(--accent-light); outline-offset: 1px; }
+
+/* Leave room so the floating button never covers the last line of a screen */
+.screen { padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 84px); }

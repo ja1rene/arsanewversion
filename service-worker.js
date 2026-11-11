@@ -8,7 +8,10 @@
    of what this can and can't guarantee).
    ============================================ */
 
-const CACHE_NAME = 'arsa-cache-v7';
+// Bump APP_VERSION every time you push changes to GitHub. That one edit is
+// what tells installed copies of the app that an update exists.
+const APP_VERSION = '1.9.0';
+const CACHE_NAME = 'arsa-' + APP_VERSION;
 const APP_SHELL = [
   './',
   './index.html',
@@ -17,6 +20,7 @@ const APP_SHELL = [
   './css/tokens.css',
   './css/session.css',
   './css/screens.css',
+  './css/coach.css',
   './fonts/archivo-latin-400-normal.woff2',
   './fonts/archivo-latin-500-normal.woff2',
   './fonts/archivo-latin-600-normal.woff2',
@@ -24,6 +28,10 @@ const APP_SHELL = [
   './fonts/martian-mono-latin-400-normal.woff2',
   './fonts/martian-mono-latin-500-normal.woff2',
   './fonts/martian-mono-latin-600-normal.woff2',
+  './js/changelog.js',
+  './js/coach-kb.js',
+  './js/coach.js',
+  './js/splits.js',
   './js/streak-engine.js',
   './js/data.js',
   './js/exercises-db.js',
@@ -47,9 +55,16 @@ const APP_SHELL = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())
+      // cache: 'reload' skips the browser's own HTTP cache (GitHub Pages
+      // caches files for ~10 minutes) so a new version really is the new files.
+      .then((cache) => cache.addAll(APP_SHELL.map((u) => new Request(u, { cache: 'reload' }))))
   );
+  // No skipWaiting here: the new version waits until the person taps
+  // "Reload" in the app, so it never swaps files under a workout in progress.
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {

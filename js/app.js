@@ -143,14 +143,77 @@ const App = {
   },
 
   _registerServiceWorker() {
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js').catch(err => {
-          console.warn('Arsa: service worker registration failed', err);
-        });
-      });
-    }
+    if (!('serviceWorker' in navigator)) return;
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./service-worker.js')
+        .then(reg => Updater.watch(reg))
+        .catch(err => console.warn('Arsa: service worker registration failed', err));
+    });
   }
 };
 
 document.addEventListener('DOMContentLoaded', () => App.init());
+
+
+/* ============================================
+   Updater — "A new version is ready" banner.
+   A new service worker installs in the background and waits. Tapping Reload
+   tells it to take over, then the page reloads once. A workout in progress
+   is autosaved, so reloading never loses it.
+   ============================================ */
+const Updater = {
+  _reg: null,
+  _reloading: false,
+
+  watch(reg) {
+    this._reg = reg;
+    const offer = () => { if (navigator.serviceWorker.controller) this._showBanner(); };
+
+    if (reg.waiting) offer();
+    reg.addEventListener('updatefound', () => {
+      const sw = reg.installing;
+      if (!sw) return;
+      sw.addEventListener('statechange', () => { if (sw.state === 'installed') offer(); });
+    });
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (this._reloading) return;
+      this._reloading = true;
+      window.location.reload();
+    });
+
+    // Look for updates whenever the app comes back to the foreground.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+
+    document.getElementById('update-reload').addEventListener('click', () => this.apply());
+    document.getElementById('update-later').addEventListener('click', () => this._hideBanner());
+  },
+
+  apply() {
+    const waiting = this._reg && this._reg.waiting;
+    if (waiting) waiting.postMessage({ type: 'SKIP_WAITING' });
+    else window.location.reload();
+  },
+
+  // For the Settings "Check for updates" button.
+  async check() {
+    if (!this._reg) return 'unsupported';
+    try { await this._reg.update(); } catch (e) { return 'offline'; }
+    if (this._reg.waiting) { this._showBanner(); return 'available'; }
+    if (this._reg.installing) return 'installing';
+    return 'current';
+  },
+
+  // The version comes from the cache name the service worker created.
+  async version() {
+    try {
+      const keys = (await caches.keys()).filter(k => /^arsa-\d/.test(k));
+      return keys.length ? keys[0].replace('arsa-', '') : null;
+    } catch (e) { return null; }
+  },
+
+  _showBanner() { document.getElementById('update-banner').classList.remove('hidden'); },
+  _hideBanner() { document.getElementById('update-banner').classList.add('hidden'); }
+};

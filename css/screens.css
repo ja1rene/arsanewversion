@@ -260,3 +260,19 @@ button.st-row:active { background: var(--bg-2); }
 .pg-award .st { white-space: nowrap; }
 .pg-award { grid-template-columns: 22px 1fr 84px; }
 .pg-award .st { text-align: right; }
+
+/* Update banner */
+.update-banner {
+  position: fixed; left: 12px; right: 12px; z-index: 900;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  display: flex; align-items: center; gap: 10px; padding: 11px 12px 11px 14px;
+  background: var(--bg-2); border: 1px solid var(--accent); border-radius: 2px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.35); font-size: 13px; color: var(--text);
+}
+.update-banner.hidden { display: none; }
+.update-banner span { flex: 1; }
+.update-banner button { border: 0; border-radius: 2px; padding: 8px 14px; font: 600 13px var(--font-ui); cursor: pointer; background: var(--accent); color: var(--on-accent); }
+.update-banner button.later { background: none; color: var(--text-2); font-weight: 500; padding: 8px 6px; }
+
+/* Switch: clearer off state */
+.sw::after { background: var(--text-2); }
