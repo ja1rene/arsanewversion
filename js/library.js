@@ -161,7 +161,7 @@ const Library = {
       <div class="modal-body">
         <div class="input-group">
           <label class="input-label" for="ce-name">Name</label>
-          <input type="text" class="input" id="ce-name" placeholder="e.g. Landmine press" autocomplete="off">
+          <input type="text" class="input" id="ce-name" placeholder="e.g. Landmine press" autocomplete="off" maxlength="60">
         </div>
         <div class="input-group">
           <label class="input-label" for="ce-muscle">Target muscle</label>
@@ -186,7 +186,7 @@ const Library = {
         <button class="btn btn-outline" id="ce-cancel">Cancel</button>
         <button class="btn btn-primary" id="ce-save">Add exercise</button>
       </div>
-    `);
+    `, { sticky: true });
 
     document.getElementById('ce-cancel').addEventListener('click', closeModal);
     document.getElementById('ce-save').addEventListener('click', () => {

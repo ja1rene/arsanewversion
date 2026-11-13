@@ -16,7 +16,13 @@ const App = {
     this.renderCurrentScreen();
     this._registerServiceWorker();
 
-    Session.checkForResumableSession();
+    // A workout session in progress takes priority. Otherwise, reopen a
+    // half-built workout that was left unsaved.
+    const resuming = Session.checkForResumableSession();
+    if (!resuming && Workouts.hasSavedDraft()) {
+      this.navigateTo('workouts');
+      if (Workouts.restoreDraft()) showToast('Restored your unsaved workout');
+    }
     Reminders.checkAndMaybeNotify();
 
     // Ask the browser not to evict saved workouts when storage runs low.

@@ -5,6 +5,15 @@
    ============================================ */
 const CHANGELOG = [
   {
+    version: '1.10.0',
+    notes: [
+      'Undo for added sets, plus a Remove this set button during a workout',
+      'Exercise form only accepts numbers, with clear messages and rest presets',
+      'Unsaved workouts are kept: reload, back gesture or closing the app no longer loses your work',
+      'Number checks when logging sets'
+    ]
+  },
+  {
     version: '1.9.0',
     notes: [
       'Coach: a chat button in the corner that answers lifting questions and knows your own training',

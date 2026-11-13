@@ -10,7 +10,7 @@
 
 // Bump APP_VERSION every time you push changes to GitHub. That one edit is
 // what tells installed copies of the app that an update exists.
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.10.0';
 const CACHE_NAME = 'arsa-' + APP_VERSION;
 const APP_SHELL = [
   './',

@@ -481,6 +481,7 @@ const Session = {
 
         <button class="sx-go" type="button" id="sx-log">${log.completed ? `Save set ${j + 1}` : `Log set ${j + 1}`}</button>
         ${log.completed ? '<button class="sx-ghost" type="button" id="sx-undo">Mark as not done</button>' : ''}
+        ${!log.completed && this._logs[i].length > 1 ? '<button class="sx-ghost" type="button" id="sx-remove">Remove this set</button>' : ''}
       </div>`;
   },
 
@@ -535,6 +536,7 @@ const Session = {
       if (t.dataset.step) return this._step(t.dataset.step, Number(t.dataset.dir));
       if (t.id === 'sx-log') return this._logSet(this._openEx, this._focusSet);
       if (t.id === 'sx-undo') return this._undoSet(this._openEx, this._focusSet);
+      if (t.id === 'sx-remove') return this._removeSet(this._openEx, this._focusSet);
       if (t.dataset.plates) {
         const [ex, set] = t.dataset.plates.split(':').map(Number);
         return PlateCalc.open(ex, set);
@@ -599,12 +601,31 @@ const Session = {
     const wEl = document.getElementById('sx-weight');
     const rEl = document.getElementById('sx-reps');
 
+    // Text the number field rejects reads as empty, so check for it directly
+    // instead of quietly logging 0.
+    if ((wEl && wEl.validity && wEl.validity.badInput) || (rEl && rEl.validity && rEl.validity.badInput)) {
+      showToast('Check the numbers. Use digits only.');
+      return;
+    }
     let weight = wEl && wEl.value !== '' ? parseFloat(wEl.value) : vals.weight;
     let reps = rEl && rEl.value !== '' ? parseFloat(rEl.value) : vals.reps;
     if (!Number.isFinite(weight) || weight < 0) weight = 0;
 
     if (!(reps > 0)) {
       showToast('Enter the reps you did');
+      return;
+    }
+    if (!Number.isInteger(reps)) {
+      showToast('Reps must be a whole number');
+      return;
+    }
+    if (reps > 200) {
+      showToast('That is a lot of reps. Check the number.');
+      return;
+    }
+    const maxWeight = Store.data.settings.units === 'lbs' ? 2200 : 1000;
+    if (weight > maxWeight) {
+      showToast(`Weight over ${maxWeight} ${Store.data.settings.units}? Check the number.`);
       return;
     }
 
@@ -635,11 +656,52 @@ const Session = {
 
   _addSet(ex) {
     this._logs[ex].push({ weight: '', reps: '', completed: false });
+    const idx = this._logs[ex].length - 1;
     this._openEx = ex;
-    this._focusSet = this._logs[ex].length - 1;
+    this._focusSet = idx;
     this._persistActiveSession(true);
     this._refreshHeader();
     this._renderBody(true);
+    // A mistap on "Add set" is one tap to take back.
+    showToast('Set added', 5000, { label: 'Undo', run: () => this._removeSet(ex, idx, { quiet: true }) });
+  },
+
+  // Removes a set that has not been logged. A logged set has to be marked as
+  // not done first, so a real set is never deleted by accident. Every
+  // exercise keeps at least one set.
+  _removeSet(ex, set, opts = {}) {
+    const logs = this._logs[ex];
+    if (!logs || !logs[set]) return;
+    if (logs[set].completed) { showToast('Mark the set as not done first'); return; }
+    if (logs.length <= 1) { showToast('An exercise needs at least one set'); return; }
+
+    const removed = logs.splice(set, 1)[0];
+
+    // Land on the set now sitting in that spot, else the last unlogged one.
+    let next = logs.findIndex((s, k) => !s.completed && k >= set);
+    if (next === -1) {
+      for (let k = logs.length - 1; k >= 0; k--) if (!logs[k].completed) { next = k; break; }
+    }
+    this._openEx = ex;
+    this._focusSet = next === -1 ? null : next;
+
+    this._persistActiveSession(true);
+    this._refreshHeader();
+    this._renderBody(true);
+
+    if (!opts.quiet) {
+      showToast('Set removed', 5000, {
+        label: 'Undo',
+        run: () => {
+          this._logs[ex].splice(set, 0, removed);
+          this._openEx = ex;
+          this._focusSet = set;
+          this._persistActiveSession(true);
+          this._refreshHeader();
+          this._renderBody(true);
+        }
+      });
+    }
   },
 
   // Called by PlateCalc once the person confirms a plate selection.

@@ -12,6 +12,9 @@ const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const Workouts = {
   _draft: null, // in-progress workout being built
   _split: null, // { id, variant } while a training split is open
+  _original: null,     // JSON snapshot of the workout when the builder opened, to tell if it changed
+  _histPushed: false,  // a browser history entry is held while the builder is open
+  _ignorePop: false,
 
   render() {
     const screen = document.getElementById('screen-workouts');
@@ -26,6 +29,8 @@ const Workouts = {
         <h1 class="screen-title">Workouts</h1>
         <button class="sc-add" type="button" data-new>New workout</button>
       </div>
+
+      ${this._draftBannerHtml()}
 
       ${workouts.length === 0 ? `
         <section class="wk-empty">
@@ -162,17 +167,20 @@ const Workouts = {
       if (t.id === 'btn-split-back') { this._split = null; return this.render(); }
       if (t.dataset.variant !== undefined) { this._split.variant = Number(t.dataset.variant); return this._renderSplit(); }
       if (t.id === 'btn-add-split') return this._addSplit();
-      if (t.dataset.new !== undefined) return this.openBuilder();
+      if (t.dataset.new !== undefined) return this._startNew();
       if (t.dataset.open) return this.openBuilder(t.dataset.open);
+      if (t.dataset.draftContinue !== undefined) return this.restoreDraft();
+      if (t.dataset.draftDiscard !== undefined) return this._confirmDiscardSaved();
 
       if (!d) return;
 
-      if (t.id === 'btn-builder-back') { this._draft = null; return this.render(); }
+      if (t.id === 'btn-builder-back') return this._requestExit();
       if (t.dataset.day !== undefined) {
         const day = Number(t.dataset.day);
         const i = d.scheduledDays.indexOf(day);
         if (i > -1) d.scheduledDays.splice(i, 1); else d.scheduledDays.push(day);
         t.setAttribute('aria-pressed', String(i === -1));
+        this._persistDraft();
         return;
       }
       if (t.id === 'btn-add-exercise') return this._openAddExercise();
@@ -187,10 +195,18 @@ const Workouts = {
       if (!this._draft) return;
       if (e.target.id === 'wb-name') this._draft.name = e.target.value;
       if (e.target.id === 'wb-desc') this._draft.description = e.target.value;
+      if (e.target.id === 'wb-name' || e.target.id === 'wb-desc') this._persistDraft();
     };
   },
 
   // ---- BUILDER ----
+  // "New workout": if an unsaved draft exists, offer it instead of silently
+  // starting over on top of it.
+  _startNew() {
+    if (this._readSavedDraft()) return this._askResumeOrNew();
+    this.openBuilder();
+  },
+
   openBuilder(workoutId = null) {
     if (workoutId) {
       const existing = Store.getWorkout(workoutId);
@@ -208,6 +224,8 @@ const Workouts = {
         scheduledDays: []
       };
     }
+    this._original = this._snap(this._draft);
+    this._holdHistory();
     this._renderBuilder();
   },
 
@@ -216,6 +234,7 @@ const Workouts = {
     const d = this._draft;
     const isEdit = !!d.id;
     this._bindScreen(screen);
+    this._persistDraft();
 
     screen.innerHTML = `
       <button class="back-btn" id="btn-builder-back" type="button">
@@ -223,11 +242,12 @@ const Workouts = {
         Workouts
       </button>
       <h1 class="screen-title" style="padding-top:8px;">${isEdit ? 'Edit workout' : 'New workout'}</h1>
+      <p class="bd-hint" style="padding:0 20px;">Your changes are saved as you go. If you leave by mistake, you can pick up where you stopped.</p>
 
       <div class="form-section mt-4">
         <div class="input-group">
           <label class="input-label" for="wb-name">Name</label>
-          <input type="text" class="input" id="wb-name" placeholder="e.g. Upper day" value="${esc(d.name)}" autocomplete="off">
+          <input type="text" class="input" id="wb-name" placeholder="e.g. Upper day" value="${esc(d.name)}" autocomplete="off" maxlength="50">
         </div>
         <div class="input-group">
           <label class="input-label" for="wb-desc">Notes</label>
@@ -295,21 +315,43 @@ const Workouts = {
     document.getElementById('confirm-del').addEventListener('click', () => {
       Store.deleteWorkout(d.id);
       closeModal();
-      this._draft = null;
-      this.render();
+      this._closeBuilder();
       showToast('Workout deleted');
     });
+  },
+
+  _parseReps(str) {
+    const s = String(str || '');
+    const range = s.match(/^\s*(\d+)\s*(?:-|\u2013|to)\s*(\d+)\s*$/i);
+    if (range) return { min: +range[1], max: +range[2] };
+    const one = s.match(/^\s*(\d+)\s*$/);
+    if (one) return { min: +one[1], max: +one[1] };
+    return { min: '', max: '', odd: s };
+  },
+
+  _restText(sec) {
+    const n = parseInt(sec, 10);
+    if (!Number.isFinite(n)) return '';
+    if (n === 0) return 'No rest';
+    const m = Math.floor(n / 60), r = n % 60;
+    return m && r ? `${m} min ${r} s` : m ? `${m} min` : `${r} s`;
   },
 
   _openAddExercise(editIdx = null) {
     const d = this._draft;
     const editingExisting = editIdx !== null;
     const ex = editingExisting ? d.exercises[editIdx] : null;
+    const reps = editingExisting ? this._parseReps(ex.repRange) : { min: 8, max: 12 };
+    const restNow = ex ? ex.restTime : 90;
 
     // Library exercises, grouped by muscle, so the list is easy to scan.
     const byMuscle = {};
     Store.getAllExercises().forEach(e => { (byMuscle[e.muscle || 'Other'] = byMuscle[e.muscle || 'Other'] || []).push(e); });
     const groups = Object.keys(byMuscle).sort();
+
+    // Number fields are text inputs that only keep digits, so letters and
+    // symbols never get in (number inputs still allow "e", "-" and "+").
+    const num = (id, val, max, ph) => `<input type="text" inputmode="numeric" pattern="[0-9]*" data-num maxlength="${max}" class="input" id="${id}" placeholder="${ph}" value="${val === '' || val === undefined ? '' : val}" autocomplete="off">`;
 
     openModal(`
       <div class="modal-title">${editingExisting ? 'Edit exercise' : 'Add exercise'}</div>
@@ -329,23 +371,36 @@ const Workouts = {
         ` : ''}
         <div class="input-group">
           <label class="input-label" for="ae-name">Name</label>
-          <input type="text" class="input" id="ae-name" placeholder="e.g. Machine chest press" value="${ex ? esc(ex.name) : ''}" autocomplete="off">
+          <input type="text" class="input" id="ae-name" placeholder="e.g. Machine chest press" value="${ex ? esc(ex.name) : ''}" autocomplete="off" maxlength="60">
+          <div class="ae-err" id="err-name" role="alert"></div>
         </div>
         <div class="input-group">
           <label class="input-label" for="ae-sets">Sets</label>
-          <input type="number" inputmode="numeric" class="input" id="ae-sets" placeholder="4" min="1" value="${ex ? ex.sets : 3}">
+          ${num('ae-sets', ex ? ex.sets : 3, 2, '3')}
+          <div class="ae-err" id="err-sets" role="alert"></div>
         </div>
         <div class="input-group">
-          <label class="input-label" for="ae-reps">Rep range</label>
-          <input type="text" class="input" id="ae-reps" placeholder="8-12" value="${ex ? esc(ex.repRange) : '8-12'}" autocomplete="off">
+          <span class="input-label">Reps per set</span>
+          <div class="ae-pair">
+            ${num('ae-min', reps.min, 3, 'Min')}
+            <span aria-hidden="true">to</span>
+            ${num('ae-max', reps.max, 3, 'Max')}
+          </div>
+          <span class="bd-hint">${reps.odd ? `This was "${esc(reps.odd)}". Enter numbers instead. ` : ''}Use the same number in both for a fixed target.</span>
+          <div class="ae-err" id="err-reps" role="alert"></div>
         </div>
         <div class="input-group">
-          <label class="input-label" for="ae-rest">Rest (seconds)</label>
-          <input type="number" inputmode="numeric" class="input" id="ae-rest" placeholder="90" min="0" value="${ex ? ex.restTime : 90}">
+          <label class="input-label" for="ae-rest">Rest between sets (seconds)</label>
+          ${num('ae-rest', restNow, 3, '90')}
+          <div class="ae-chips">
+            ${[30, 60, 90, 120, 180].map(v => `<button type="button" class="ae-chip" data-rest="${v}">${v}</button>`).join('')}
+            <span class="ae-read" id="ae-rest-read">${this._restText(restNow)}</span>
+          </div>
+          <div class="ae-err" id="err-rest" role="alert"></div>
         </div>
         <div class="input-group">
           <label class="input-label" for="ae-notes">Notes</label>
-          <textarea class="input" id="ae-notes" placeholder="Optional" rows="2">${ex ? esc(ex.notes || '') : ''}</textarea>
+          <textarea class="input" id="ae-notes" placeholder="Optional" rows="2" maxlength="300">${ex ? esc(ex.notes || '') : ''}</textarea>
         </div>
         ${editingExisting ? `
           <div class="bd-ex-tools">
@@ -357,50 +412,92 @@ const Workouts = {
         <button class="btn btn-outline" id="ae-cancel">Cancel</button>
         <button class="btn btn-primary" id="ae-save">${editingExisting ? 'Save' : 'Add'}</button>
       </div>
-    `);
+    `, { sticky: true });
 
-    const selectEl = document.getElementById('ae-select');
+    const $ = (id) => document.getElementById(id);
+    const selectEl = $('ae-select');
+    const setErr = (key, msg) => {
+      $('err-' + key).textContent = msg || '';
+      (key === 'reps' ? ['ae-min', 'ae-max'] : ['ae-' + key]).forEach(id => $(id).setAttribute('aria-invalid', msg ? 'true' : 'false'));
+    };
+
+    // Keep digits only, and clear a field's error as soon as it is edited.
+    document.getElementById('modal-container').oninput = (e) => {
+      const el = e.target;
+      if (el.dataset && el.dataset.num !== undefined) {
+        const clean = el.value.replace(/\D/g, '');
+        if (clean !== el.value) el.value = clean;
+        if (el.id === 'ae-rest') $('ae-rest-read').textContent = this._restText(el.value);
+        setErr(el.id === 'ae-min' || el.id === 'ae-max' ? 'reps' : el.id.replace('ae-', ''), '');
+      } else if (el.id === 'ae-name') setErr('name', '');
+    };
+
+    document.querySelectorAll('.ae-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        $('ae-rest').value = chip.dataset.rest;
+        $('ae-rest-read').textContent = this._restText(chip.dataset.rest);
+        setErr('rest', '');
+      });
+    });
+
     if (selectEl) {
       selectEl.addEventListener('change', () => {
         const lib = Store.getExerciseById(selectEl.value);
-        if (lib) document.getElementById('ae-name').value = lib.name;
+        if (lib) { $('ae-name').value = lib.name; setErr('name', ''); }
       });
     }
 
-    document.getElementById('ae-cancel').addEventListener('click', closeModal);
+    $('ae-cancel').addEventListener('click', closeModal);
 
     if (editingExisting) {
-      document.getElementById('ae-dup').addEventListener('click', () => {
+      $('ae-dup').addEventListener('click', () => {
         const copy = JSON.parse(JSON.stringify(ex));
         copy.id = Store.uid();
         d.exercises.splice(editIdx + 1, 0, copy);
         closeModal();
         this._renderBuilder();
       });
-      document.getElementById('ae-remove').addEventListener('click', () => {
-        d.exercises.splice(editIdx, 1);
+      $('ae-remove').addEventListener('click', () => {
+        const removed = d.exercises.splice(editIdx, 1)[0];
         closeModal();
         this._renderBuilder();
+        showToast('Exercise removed', 5000, { label: 'Undo', run: () => { d.exercises.splice(editIdx, 0, removed); this._renderBuilder(); } });
       });
     }
 
-    document.getElementById('ae-save').addEventListener('click', () => {
-      const name = document.getElementById('ae-name').value.trim();
-      if (!name) { showToast('Enter an exercise name'); return; }
-      const sets = Number(document.getElementById('ae-sets').value) || 3;
-      const repRange = document.getElementById('ae-reps').value.trim() || '8-12';
-      const restTime = Number(document.getElementById('ae-rest').value) || 90;
-      const notes = document.getElementById('ae-notes').value.trim();
+    $('ae-save').addEventListener('click', () => {
+      const name = $('ae-name').value.trim().replace(/\s+/g, ' ');
+      const sets = parseInt($('ae-sets').value, 10);
+      const min = parseInt($('ae-min').value, 10);
+      const maxRaw = $('ae-max').value;
+      const max = maxRaw === '' ? min : parseInt(maxRaw, 10);
+      const restRaw = $('ae-rest').value;
+      const rest = parseInt(restRaw, 10);
+
+      const errors = {};
+      if (!name) errors.name = 'Enter an exercise name';
+      if (!(sets >= 1 && sets <= 20)) errors.sets = 'Enter 1 to 20 sets';
+      if (!(min >= 1 && min <= 100) || !(max >= 1 && max <= 100)) errors.reps = 'Enter reps between 1 and 100';
+      else if (max < min) errors.reps = 'Max reps cannot be lower than min reps';
+      if (restRaw === '' || !Number.isFinite(rest)) errors.rest = 'Enter the rest in seconds, or 0 for none';
+      else if (rest > 900) errors.rest = 'Rest can be up to 900 seconds (15 minutes)';
+
+      ['name', 'sets', 'reps', 'rest'].forEach(k => setErr(k, errors[k]));
+      const first = ['name', 'sets', 'reps', 'rest'].find(k => errors[k]);
+      if (first) {
+        const target = first === 'reps' ? $('ae-min') : $('ae-' + first);
+        target.focus();
+        return;
+      }
+
+      const repRange = min === max ? String(min) : `${min}-${max}`;
+      const notes = $('ae-notes').value.trim();
       const libId = selectEl ? selectEl.value : (ex ? ex.exerciseId : '');
 
       if (editingExisting) {
-        Object.assign(ex, { name, sets, repRange, restTime, notes });
+        Object.assign(ex, { name, sets, repRange, restTime: rest, notes });
       } else {
-        d.exercises.push({
-          id: Store.uid(),
-          exerciseId: libId || null,
-          name, sets, repRange, restTime, notes
-        });
+        d.exercises.push({ id: Store.uid(), exerciseId: libId || null, name, sets, repRange, restTime: rest, notes });
       }
       closeModal();
       this._renderBuilder();
@@ -409,8 +506,11 @@ const Workouts = {
 
   _saveDraft() {
     const d = this._draft;
-    if (!d.name.trim()) { showToast('Name your workout first'); return; }
+    d.name = d.name.trim().replace(/\s+/g, ' ');
+    if (!d.name) { showToast('Name your workout first'); return; }
     if (d.exercises.length === 0) { showToast('Add at least one exercise'); return; }
+    const clash = Store.getWorkouts().find(w => w.id !== d.id && w.name.trim().toLowerCase() === d.name.toLowerCase());
+    if (clash) { showToast(`You already have a workout called "${d.name}"`); return; }
 
     if (d.id) {
       Store.updateWorkout(d.id, d);
@@ -419,10 +519,155 @@ const Workouts = {
       Store.createWorkout(d);
       showToast('Workout created');
     }
+    this._closeBuilder();
+  },
+
+  // ---- DRAFT SAFETY ----
+  // The builder saves to the device on every change, so a reload, a crash or
+  // a stray back gesture cannot throw away a half-built workout.
+
+  _DRAFT_KEY: 'arsa-workout-draft',
+
+  _snap(d) { return JSON.stringify(d); },
+  _isDirty() { return !!this._draft && this._snap(this._draft) !== this._original; },
+
+  _persistDraft() {
+    try {
+      if (!this._draft || !this._isDirty()) { localStorage.removeItem(this._DRAFT_KEY); return; }
+      localStorage.setItem(this._DRAFT_KEY, JSON.stringify({ draft: this._draft, original: this._original, savedAt: new Date().toISOString() }));
+    } catch (e) { /* storage full or blocked: the in-memory draft still works */ }
+  },
+
+  _clearDraftStorage() { try { localStorage.removeItem(this._DRAFT_KEY); } catch (e) { /* ignore */ } },
+
+  _readSavedDraft() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(this._DRAFT_KEY) || 'null');
+      if (!saved || !saved.draft || !Array.isArray(saved.draft.exercises) || !Array.isArray(saved.draft.scheduledDays)) return null;
+      const age = Date.now() - new Date(saved.savedAt).getTime();
+      if (!(age < 14 * 86400000)) { this._clearDraftStorage(); return null; }
+      return saved;
+    } catch (e) { return null; }
+  },
+
+  hasSavedDraft() { return !!this._readSavedDraft(); },
+
+  restoreDraft() {
+    const saved = this._readSavedDraft();
+    if (!saved) return false;
+    this._draft = saved.draft;
+    this._original = saved.original || this._snap({ ...saved.draft, name: '', exercises: [], scheduledDays: [], description: '' });
+    // Editing a workout that has since been deleted: keep the work as a new one.
+    if (this._draft.id && !Store.getWorkout(this._draft.id)) this._draft.id = null;
+    this._holdHistory();
+    this._renderBuilder();
+    return true;
+  },
+
+  _draftBannerHtml() {
+    const saved = this._readSavedDraft();
+    if (!saved) return '';
+    const n = saved.draft.exercises.length;
+    const mins = Math.max(0, Math.round((Date.now() - new Date(saved.savedAt).getTime()) / 60000));
+    const ago = mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : mins < 1440 ? `${Math.round(mins / 60)} h ago` : `${Math.round(mins / 1440)} d ago`;
+    const name = (saved.draft.name || '').trim() || 'Untitled workout';
+    return `
+      <div class="wk-draft" role="group" aria-label="Unsaved workout">
+        <div class="tx"><b>Unsaved workout</b><small>${esc(name)}, ${n} ${n === 1 ? 'exercise' : 'exercises'}, ${ago}</small></div>
+        <button class="wk-start" type="button" data-draft-continue>Continue</button>
+        <button class="sx-text" type="button" data-draft-discard>Discard</button>
+      </div>`;
+  },
+
+  _askResumeOrNew() {
+    openModal(`
+      <div class="modal-title">You have an unsaved workout</div>
+      <div class="modal-body"><p style="color:var(--text-2);">Pick up where you stopped, or start a fresh one. Starting fresh discards the unsaved one.</p></div>
+      <div class="stack-actions">
+        <button class="btn btn-primary btn-full" id="rn-continue">Continue the unsaved one</button>
+        <button class="btn btn-outline btn-full" id="rn-new">Start a new workout</button>
+        <button class="btn btn-outline btn-full" id="rn-cancel">Cancel</button>
+      </div>
+    `, { sticky: true });
+    document.getElementById('rn-continue').addEventListener('click', () => { closeModal(); this.restoreDraft(); });
+    document.getElementById('rn-new').addEventListener('click', () => { closeModal(); this._clearDraftStorage(); this.openBuilder(); });
+    document.getElementById('rn-cancel').addEventListener('click', closeModal);
+  },
+
+  _confirmDiscardSaved() {
+    openModal(`
+      <div class="modal-title">Discard the unsaved workout?</div>
+      <div class="modal-body"><p style="color:var(--text-2);">The exercises and details you entered will be deleted. This cannot be undone.</p></div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" id="ds-keep">Keep it</button>
+        <button class="btn btn-danger" id="ds-go">Discard</button>
+      </div>
+    `, { sticky: true });
+    document.getElementById('ds-keep').addEventListener('click', closeModal);
+    document.getElementById('ds-go').addEventListener('click', () => { closeModal(); this._clearDraftStorage(); this.render(); showToast('Unsaved workout discarded'); });
+  },
+
+  // Back button, Back gesture and the phone's back key all land here.
+  _requestExit() {
+    if (!this._isDirty()) return this._closeBuilder();
+    openModal(`
+      <div class="modal-title">Leave this workout?</div>
+      <div class="modal-body"><p style="color:var(--text-2);">You have changes that are not saved to your workout list yet.</p></div>
+      <div class="stack-actions">
+        <button class="btn btn-primary btn-full" id="lv-stay">Keep editing</button>
+        <button class="btn btn-outline btn-full" id="lv-draft">Leave and save as a draft</button>
+        <button class="btn btn-outline btn-full" id="lv-discard" style="color:var(--red);">Discard changes</button>
+      </div>
+    `, { sticky: true });
+    document.getElementById('lv-stay').addEventListener('click', closeModal);
+    document.getElementById('lv-draft').addEventListener('click', () => {
+      this._persistDraft();
+      closeModal();
+      this._closeBuilder({ keepDraft: true });
+      showToast('Saved as a draft. Find it at the top of Workouts.');
+    });
+    document.getElementById('lv-discard').addEventListener('click', () => {
+      closeModal();
+      this._closeBuilder();
+    });
+  },
+
+  _closeBuilder(opts = {}) {
+    if (!opts.keepDraft) this._clearDraftStorage();
     this._draft = null;
+    this._original = null;
+    this._releaseHistory();
     this.render();
+  },
+
+  // While the builder is open, hold one browser history entry so the phone's
+  // back key asks first instead of leaving the app.
+  _holdHistory() {
+    if (this._histPushed) return;
+    try { history.pushState({ arsa: 'builder' }, ''); this._histPushed = true; } catch (e) { /* ignore */ }
+  },
+  _releaseHistory() {
+    if (!this._histPushed) return;
+    this._histPushed = false;
+    this._ignorePop = true;
+    try { history.back(); } catch (e) { this._ignorePop = false; }
   }
 };
+
+window.addEventListener('popstate', () => {
+  if (Workouts._ignorePop) { Workouts._ignorePop = false; return; }
+  if (!Workouts._draft) return;
+  if (App.currentScreen !== 'workouts') { Workouts._histPushed = false; return; }
+  history.pushState({ arsa: 'builder' }, '');
+  Workouts._histPushed = true;
+  Workouts._requestExit();
+});
+
+// Last chance to save when the page is hidden or closed.
+['pagehide', 'visibilitychange'].forEach(ev => window.addEventListener(ev, () => {
+  if (ev === 'visibilitychange' && document.visibilityState !== 'hidden') return;
+  Workouts._persistDraft();
+}));
 
 document.addEventListener('click', (e) => {
   const startBtn = e.target.closest('[data-start]');

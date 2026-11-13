@@ -433,6 +433,7 @@ const Store = {
     }
   },
   resetAll() {
+    try { localStorage.removeItem('arsa-workout-draft'); } catch (e) { /* ignore */ }
     this._data = JSON.parse(JSON.stringify(DEFAULT_DATA));
     this._data.meta.createdAt = new Date().toISOString();
     this.save();
@@ -478,28 +479,57 @@ const Fmt = {
 };
 
 // ---- Toast ----
-function showToast(msg, duration = 2200) {
+// action (optional): { label, run } adds a button, such as Undo, to the toast.
+function showToast(msg, duration = 2200, action = null) {
   const el = document.getElementById('toast');
-  el.textContent = msg;
+  el.textContent = '';
+  const text = document.createElement('span');
+  text.textContent = msg;
+  el.appendChild(text);
+  if (action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-act';
+    btn.textContent = action.label;
+    btn.addEventListener('click', () => {
+      clearTimeout(el._timeout);
+      el.classList.add('hidden');
+      action.run();
+    });
+    el.appendChild(btn);
+  }
   el.classList.remove('hidden');
   clearTimeout(el._timeout);
-  el._timeout = setTimeout(() => el.classList.add('hidden'), duration);
+  el._timeout = setTimeout(() => el.classList.add('hidden'), action ? Math.max(duration, 5000) : duration);
 }
 
 // ---- Modal Helpers ----
-function openModal(html) {
+// opts.sticky: forms with typed-in details. Tapping outside does not close
+// them (it only nudges the sheet), so a stray tap cannot throw the input away.
+function openModal(html, opts = {}) {
   const overlay = document.getElementById('modal-overlay');
   const container = document.getElementById('modal-container');
   container.innerHTML = `<div class="modal-handle"></div>${html}`;
+  overlay.dataset.sticky = opts.sticky ? '1' : '';
   overlay.classList.remove('hidden');
 }
 function closeModal() {
-  document.getElementById('modal-overlay').classList.add('hidden');
+  const overlay = document.getElementById('modal-overlay');
+  overlay.dataset.sticky = '';
+  overlay.classList.add('hidden');
 }
 document.addEventListener('DOMContentLoaded', () => {
   const overlay = document.getElementById('modal-overlay');
   overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) closeModal();
+    if (e.target !== overlay) return;
+    if (overlay.dataset.sticky) {
+      const box = document.getElementById('modal-container');
+      box.classList.remove('nudge');
+      void box.offsetWidth;
+      box.classList.add('nudge');
+      return;
+    }
+    closeModal();
   });
 });
 
