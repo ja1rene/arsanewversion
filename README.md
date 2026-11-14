@@ -181,7 +181,7 @@ You only need a browser. There is nothing to install.
 
 1. **Download the code**
    ```bash
-   git clone https://github.com/YOUR-USERNAME/YOUR-REPO.git
+   git clone https://github.com/ja1rene/arsanewversion.git
    cd YOUR-REPO
    ```
    (or press **Code → Download ZIP** on GitHub and unzip it)
@@ -205,7 +205,7 @@ You only need a browser. There is nothing to install.
 1. Push the project to GitHub.
 2. Go to **Settings → Pages**.
 3. Under **Source**, choose your main branch and the root folder, then save.
-4. After a minute, your app is live at `https://YOUR-USERNAME.github.io/YOUR-REPO/`.
+4. After a minute, your app is live at `https://ja1rene.github.io/arsanewversion/`.
 
 ### Install it on your phone
 
@@ -277,10 +277,6 @@ Ideas are welcome. Open an issue and tell me what would make your training easie
 2. Create a branch: `git checkout -b my-idea`
 3. Make your change and test it in the browser
 4. Open a pull request describing what you changed and why
-
-## License
-
-Choose a license for your project (MIT is a common, permissive choice) and add a `LICENSE` file. GitHub can create one for you under **Add file → Create new file → name it LICENSE**.
 
 ---
 
