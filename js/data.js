@@ -433,7 +433,7 @@ const Store = {
     }
   },
   resetAll() {
-    try { localStorage.removeItem('arsa-workout-draft'); } catch (e) { /* ignore */ }
+    try { localStorage.removeItem('arsa-workout-draft'); localStorage.removeItem('arsa-onboarding'); } catch (e) { /* ignore */ }
     this._data = JSON.parse(JSON.stringify(DEFAULT_DATA));
     this._data.meta.createdAt = new Date().toISOString();
     this.save();

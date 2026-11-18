@@ -44,13 +44,16 @@ const Coach = {
       <div class="coach-back" data-close></div>
       <div class="coach-panel" id="coach-panel">
         <div class="coach-head">
-          <div class="ti"><b>Coach</b><small>Works offline, stays on this phone</small></div>
+          <div class="ti"><b>Coach</b><small id="coach-status"><i class="dot"></i><span>Works offline, stays on this phone</span></small></div>
           <button type="button" class="coach-hbtn" id="coach-clear">Clear</button>
           <button type="button" class="coach-hbtn" id="coach-x" aria-label="Close">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
           </button>
         </div>
         <div class="coach-log" id="coach-log" aria-live="polite"></div>
+        <div class="coach-cats" id="coach-cats" role="group" aria-label="Topics">
+          ${COACH_CATS.map(c => `<button type="button" class="coach-cat" data-cat="${c.id}">${c.label}</button>`).join('')}
+        </div>
         <div class="coach-chips" id="coach-chips"></div>
         <form class="coach-form" id="coach-form" autocomplete="off">
           <input type="text" id="coach-input" placeholder="Ask about your training" aria-label="Ask Coach" enterkeyhint="send" autocapitalize="sentences" maxlength="300">
@@ -65,6 +68,8 @@ const Coach = {
     sheet.addEventListener('click', (e) => {
       if (e.target.closest('[data-close]') || e.target.closest('#coach-x')) return this.close();
       if (e.target.closest('#coach-clear')) return this._confirmClear();
+      const cat = e.target.closest('[data-cat]');
+      if (cat) return this._showCategory(cat.dataset.cat);
       const chip = e.target.closest('[data-chip]');
       if (chip) return this.ask(chip.dataset.chip);
       const act = e.target.closest('[data-act]');
@@ -74,7 +79,13 @@ const Coach = {
       e.preventDefault();
       const input = document.getElementById('coach-input');
       const text = input.value.trim();
-      if (!text) return;
+      if (!text) {
+        input.classList.remove('shake'); void input.offsetWidth; input.classList.add('shake');
+        input.placeholder = 'Type a question first';
+        input.focus();
+        return;
+      }
+      input.placeholder = 'Ask about your training';
       input.value = '';
       this.ask(text);
     });
@@ -88,6 +99,9 @@ const Coach = {
     }
 
     this._loadChat();
+    this._updateStatus();
+    window.addEventListener('online', () => this._updateStatus());
+    window.addEventListener('offline', () => this._updateStatus());
 
     // First launch only: show the label for a few seconds so the button is noticed.
     try {
@@ -142,15 +156,20 @@ const Coach = {
     try {
       const saved = JSON.parse(localStorage.getItem(COACH_CHAT_KEY) || 'null');
       if (saved && Array.isArray(saved.msgs)) this._msgs = saved.msgs.slice(-40);
-    } catch (e) { this._msgs = []; }
+      const base = this._newConv();
+      this._conv = (saved && saved.conv && typeof saved.conv === 'object') ? Object.assign(base, saved.conv) : base;
+      if (!this._conv.profile || typeof this._conv.profile !== 'object') this._conv.profile = {};
+      if (!this._conv.answers || typeof this._conv.answers !== 'object') this._conv.answers = {};
+    } catch (e) { this._msgs = []; this._conv = this._newConv(); }
   },
   _saveChat() {
-    try { localStorage.setItem(COACH_CHAT_KEY, JSON.stringify({ msgs: this._msgs.slice(-40) })); } catch (e) { /* ignore */ }
+    try { localStorage.setItem(COACH_CHAT_KEY, JSON.stringify({ msgs: this._msgs.slice(-40), conv: this._conv })); } catch (e) { /* ignore */ }
   },
 
   _confirmClear() {
     if (!this._msgs.length) return;
     this._msgs = [];
+    this._conv = this._newConv();
     this._last = { id: null, ex: null, range: null };
     this._saveChat();
     this._greet();
@@ -176,14 +195,33 @@ const Coach = {
     return esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
   },
 
+  // A paragraph can hold lines starting "1. " or "- ", shown as real lists.
+  _blockHtml(text) {
+    const lines = String(text).split('\n');
+    let html = '', i = 0;
+    while (i < lines.length) {
+      const l = lines[i];
+      if (/^\d+\. /.test(l)) {
+        let items = '';
+        while (i < lines.length && /^\d+\. /.test(lines[i])) { items += `<li>${this._fmt(lines[i].replace(/^\d+\. /, ''))}</li>`; i++; }
+        html += `<ol>${items}</ol>`;
+      } else if (/^- /.test(l)) {
+        let items = '';
+        while (i < lines.length && /^- /.test(lines[i])) { items += `<li>${this._fmt(lines[i].slice(2))}</li>`; i++; }
+        html += `<ul>${items}</ul>`;
+      } else { html += `<p>${this._fmt(l)}</p>`; i++; }
+    }
+    return html;
+  },
+
   _msgHtml(m) {
     if (m.r === 'u') return `<div class="cm cm-u"><div class="cm-b">${esc(m.p[0])}</div></div>`;
-    const paras = (m.p || []).map(t => `<p>${this._fmt(t)}</p>`).join('');
+    const paras = (m.p || []).map(t => this._blockHtml(t)).join('');
     const rows = (m.rows && m.rows.length)
       ? `<div class="cm-rows">${m.rows.map(r => `<div><span>${esc(r[0])}</span><span class="num">${esc(r[1])}</span></div>`).join('')}</div>` : '';
     const acts = (m.act && m.act.length)
       ? `<div class="cm-act">${m.act.map(a => `<button type="button" data-act='${esc(JSON.stringify(a)).replace(/'/g, '&#39;')}'>${esc(a.label)}</button>`).join('')}</div>` : '';
-    return `<div class="cm cm-c"><div class="cm-b">${paras}${rows}${acts}</div></div>`;
+    return `<div class="cm cm-c${m.safety ? ' cm-safe' : ''}"><div class="cm-b">${paras}${rows}${acts}</div></div>`;
   },
 
   _renderAll() {
@@ -233,7 +271,7 @@ const Coach = {
         reply = { p: ['Something went wrong while reading your data. Try asking another way.'], f: this._suggestions(3) };
       }
       this._typing(false);
-      this._push({ r: 'c', p: reply.p || [], rows: reply.rows || null, act: reply.act || null });
+      this._push({ r: 'c', p: reply.p || [], rows: reply.rows || null, act: reply.act || null, safety: reply.safety ? 1 : 0 });
       this._chips = (reply.f && reply.f.length) ? reply.f.slice(0, 4) : this._suggestions(4);
       this._renderChips();
     }, 280);
@@ -290,6 +328,25 @@ const Coach = {
     return id ? Store.getExerciseById(id) : null;
   },
 
+  _updateStatus() {
+    const el = document.getElementById('coach-status');
+    if (!el) return;
+    const off = typeof navigator !== 'undefined' && navigator.onLine === false;
+    el.classList.toggle('is-off', off);
+    el.querySelector('span').textContent = off ? 'Offline. Coach still works' : 'Works offline, stays on this phone';
+  },
+
+  _showCategory(id) {
+    const cat = COACH_CATS.find(c => c.id === id);
+    if (!cat) return;
+    if (!this._kb) this._buildKB();
+    const qs = cat.qs.slice(0, 8);
+    this._push({ r: 'u', p: [cat.label] });
+    this._push({ r: 'c', p: [cat.intro], act: qs.map(q => ({ label: q, type: 'ask', text: q })) });
+    this._chips = [];
+    this._renderChips();
+  },
+
   // =============================================================== Actions
 
   _doAction(a) {
@@ -343,7 +400,7 @@ const Coach = {
     });
     if (s === 0) return 0;
     if (e.ex && ctx.ex) s += 2;
-    if (e.personal && !(ctx.me || ctx.ex || s >= 3)) return 0;
+    if (e.personal && !(ctx.me || ctx.ex || s >= 3 || ctx.pad.trim().split(' ').length <= 2)) return 0;
     return s + (e._data ? 0.1 : 0);
   },
 
@@ -414,48 +471,7 @@ const Coach = {
     };
   },
 
-  _answer(raw) {
-    if (!this._idx) this._buildIndex();
-    const ctx = this._context(raw);
-    const q = ctx.pad.trim();
-
-    if (/^(hi|hello|hey|yo|sup|hola|howdy)( coach| there)?$/.test(q) || /^good (morning|afternoon|evening)( coach)?$/.test(q)) return this._greetReply();
-    if (/^(thanks|thank you|ty|thx|cool|nice|great|awesome|ok|okay|got it|perfect)( coach| so much| a lot)?$/.test(q)) {
-      return { p: ['Anytime. Ask me whatever you want about your training.'], f: this._suggestions(3) };
-    }
-
-    let best = null, bestScore = 0;
-    this._idx.forEach(e => {
-      const s = this._score(e, ctx);
-      if (s > bestScore) { best = e; bestScore = s; }
-    });
-
-    // Follow-ups like "and for squat?" or "what about last week?"
-    if (!best && this._last.id) {
-      const prev = this._idx.find(e => e.id === this._last.id && e._data);
-      if (prev && ((ctx.ex && prev.ex) || (ctx.range && prev.range))) best = prev;
-    }
-
-    // Just an exercise name: give a quick summary of it.
-    if (!best && ctx.ex) return this._exSummary(ctx);
-
-    if (!best) {
-      this._recordMiss(raw);
-      return {
-        p: ["I don't have an answer for that yet. I know lifting basics, how to use Arsa, and your own training numbers, and I run on this phone without internet. Try one of these:"],
-        f: this._suggestions(4)
-      };
-    }
-
-    if (best._data) {
-      this._last = { id: best.id, ex: ctx.ex || this._last.ex, range: ctx.range || this._last.range };
-      if (!ctx.ex && this._last.ex && best.ex && /^(and|what about|how about)/.test(q)) ctx.ex = this._last.ex;
-      return best.run(ctx);
-    }
-
-    const a = typeof best.a === 'function' ? best.a(ctx) : best.a;
-    return { p: a, act: best.act || null, f: best.f || this._suggestions(3) };
-  },
+  // _answer() lives in coach-engine.js
 
   // =============================================================== Data helpers
 
@@ -1078,3 +1094,21 @@ const Coach = {
 };
 
 document.addEventListener('DOMContentLoaded', () => Coach.init());
+
+// Quick-access topics. Each question below is answered by the knowledge base.
+const COACH_CATS = [
+  { id: 'exercise', label: 'Exercise guide', intro: 'Pick an exercise or a technique question.',
+    qs: ['How do I bench press?', 'How do I squat?', 'How do I deadlift?', 'How do I do a lat pulldown?', 'How do I breathe when lifting weights?', 'Should my back be straight when lifting?', 'How do I know if my form is correct?', 'What muscles do deadlifts work?'] },
+  { id: 'sets_reps', label: 'Sets & reps', intro: 'Sets, reps and getting stronger.',
+    qs: ['How many reps should I do?', 'How many sets per exercise?', 'What is progressive overload?', 'How do I know when to increase the weight?', 'How long should I rest between sets?', 'Should I train to failure?', 'What is RIR?', 'What is double progression?'] },
+  { id: 'muscles', label: 'Muscle growth', intro: 'Muscles and how to grow them.',
+    qs: ['How do I grow my arms?', 'How do I train my lats?', 'What exercises target the upper chest?', 'How do I build wider shoulders?', 'What are compound exercises?', 'Which exercises target the hamstrings?', 'Why am I not seeing muscle growth?', 'Chest'] },
+  { id: 'nutrition', label: 'Nutrition', intro: 'Eating for training.',
+    qs: ['How much protein do I need?', 'What should I eat before working out?', 'What should I eat after working out?', 'Do I need protein powder?', 'What is a calorie surplus?', 'What is the difference between bulking and cutting?', 'Is creatine safe?', 'Can I build muscle while losing fat?'] },
+  { id: 'recovery', label: 'Recovery', intro: 'Rest, sleep and soreness.',
+    qs: ['Why am I sore after working out?', 'How much sleep do I need for muscle recovery?', 'Should I exercise when I am still sore?', 'What is the difference between soreness and an injury?', 'What is overtraining?', 'What is a rest day?', 'What is a deload?', 'Can I train the same muscle two days in a row?'] },
+  { id: 'problems', label: 'Gym problems', intro: 'Real situations and fixes.',
+    qs: ['What if the gym equipment I need is occupied?', 'What if I cannot lift the weight I used last week?', 'I feel tired halfway through my workout', 'What if I only have 30 minutes to work out?', 'Should I use machines or free weights?', 'How do I choose the right starting weight?', 'What should I do if I reach a plateau?', 'What are common beginner mistakes?'] },
+  { id: 'glossary', label: 'Gym dictionary', intro: 'Gym words, explained simply.',
+    qs: ['What is a PR?', 'What is 1RM?', 'What is RIR?', 'What is RPE?', 'What is hypertrophy?', 'What is a superset?', 'What is a drop set?', 'What is time under tension?'] }
+];

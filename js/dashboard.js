@@ -17,6 +17,8 @@ const Dashboard = {
         <span class="db-date">${new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
       </div>
 
+      ${(() => { const g = Profile.greeting(); return `<div class="db-greet"><h1>${esc(g.title)}</h1><p>${g.sub}</p></div>`; })()}
+
       ${this._renderToday(history)}
       ${this._renderLedger(stats, history)}
       ${this._renderHeatmap(history)}

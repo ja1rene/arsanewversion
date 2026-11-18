@@ -41,10 +41,14 @@ const Settings = {
       <h1 class="screen-title">Settings</h1>
 
       <div class="pg-sec"><span>Profile</span></div>
-      <div class="st-row">
-        <label class="lb" for="set-name"><span>Name</span></label>
-        <input type="text" class="st-input" id="set-name" placeholder="Your name" value="${esc(s.name && s.name !== 'Lifter' ? s.name : '')}" autocomplete="off">
-      </div>
+      <form class="pf" id="profile-form" novalidate>
+        <p class="pf-hint">${Profile.get() ? 'Shown in your dashboard greeting.' : 'Add your name and Arsa will greet you on the dashboard.'}</p>
+        <div class="pf-row">
+          <input type="text" class="pf-input" id="set-name" aria-label="Your name" placeholder="Your name" maxlength="40" value="${esc(Profile.get())}" autocomplete="given-name" aria-describedby="pf-msg">
+          <button class="pf-save" type="submit">Save</button>
+        </div>
+        <p class="pf-msg" id="pf-msg" role="status" aria-live="polite"></p>
+      </form>
 
       <div class="pg-sec"><span>Appearance</span></div>
       ${row('theme', 'Theme', this._themeLabel(s.theme))}
@@ -70,6 +74,7 @@ const Settings = {
       <div class="pg-sec"><span>About</span></div>
       <div class="st-row"><span class="lb"><span>Version</span></span><span class="val num" id="st-version">...</span></div>
       ${row('check-update', 'Check for updates', '')}
+      ${row('replay-tutorial', 'Replay app tutorial', '')}
       ${row('whats-new', "What's new", '')}
       ${row('coach-misses', 'Coach questions', Coach.getMisses().length ? Coach.getMisses().length + ' unanswered' : 'None', 'Questions Coach could not answer, saved on this device only')}
 
@@ -128,6 +133,7 @@ const Settings = {
         case 'export': return this._exportData();
         case 'import': return document.getElementById('import-file-input').click();
         case 'reset': return this._confirmReset();
+        case 'replay-tutorial': return Onboarding.start({ replay: true });
         case 'whats-new': return this._openWhatsNew();
         case 'coach-misses': return this._openCoachMisses();
         case 'check-update': {
@@ -159,11 +165,26 @@ const Settings = {
       }
     };
 
+    screen.onsubmit = (e) => {
+      if (e.target.id !== 'profile-form') return;
+      e.preventDefault();
+      const input = document.getElementById('set-name');
+      const msg = document.getElementById('pf-msg');
+      const r = Profile.save(input.value);
+      input.classList.toggle('bad', !r.ok);
+      msg.className = 'pf-msg ' + (r.ok ? 'ok' : 'err');
+      msg.textContent = r.ok ? 'Saved. Hi, ' + r.value + '.' : r.error;
+      if (r.ok) input.value = r.value; else input.focus();
+    };
+    screen.oninput = (e) => {
+      if (e.target.id !== 'set-name') return;
+      e.target.classList.remove('bad');
+      const msg = document.getElementById('pf-msg');
+      if (msg) { msg.textContent = ''; msg.className = 'pf-msg'; }
+    };
+
     screen.onchange = (e) => {
-      if (e.target.id === 'set-name') {
-        Store.data.settings.name = e.target.value.trim() || 'Lifter';
-        Store.save();
-      } else if (e.target.id === 'import-file-input') {
+      if (e.target.id === 'import-file-input') {
         this._importData(e);
       }
     };

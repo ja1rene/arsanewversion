@@ -1,0 +1,54 @@
+/* ARSA — onboarding + profile card + dashboard greeting */
+.ob { position: fixed; inset: 0; z-index: 800; background: var(--bg); color: var(--text);
+  display: flex; justify-content: center; overflow-y: auto;
+  padding: var(--safe-top, 0) 0 var(--safe-bottom, 0); animation: ob-fade .25s ease both; }
+.ob-inner { width: 100%; max-width: 460px; min-height: 100%; display: flex; flex-direction: column; padding: 20px 24px 24px; }
+.ob-top { display: flex; justify-content: space-between; align-items: center; min-height: 40px; }
+.ob-count { font-size: 12px; color: var(--text-2); letter-spacing: .04em; }
+.ob-card { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 16px 0; }
+.ob-logo { margin-bottom: 24px; }
+.ob-artwrap { width: 120px; height: 96px; display: flex; align-items: center; justify-content: center;
+  background: var(--bg-2); border: 1px solid var(--border); border-radius: 2px; margin-bottom: 28px; color: var(--text-2); }
+.ob-art { width: 80px; height: 64px; }
+.ob-art .acc { stroke: var(--accent); }
+.ob-h { font: 700 clamp(28px, 9vw, 36px)/1.05 var(--font-ui); letter-spacing: -.03em; margin: 0 0 14px; outline: none; }
+.ob-p { font-size: 16px; line-height: 1.5; color: var(--text-2); margin: 0; max-width: 40ch; }
+.ob-dots { display: flex; gap: 6px; justify-content: center; margin: 8px 0 20px; }
+.ob-dots i { width: 6px; height: 6px; border-radius: 1px; background: var(--border); transition: background .2s, width .2s; }
+.ob-dots i.on { background: var(--accent); width: 18px; }
+.ob-foot { display: flex; flex-direction: column; gap: 10px; }
+.ob-foot.row { flex-direction: row; }
+.ob-foot.row .ob-btn { flex: 1; }
+.ob-btn { font: 600 15px var(--font-ui); min-height: 48px; padding: 0 18px; border-radius: 2px; cursor: pointer;
+  border: 1px solid transparent; transition: transform .1s, opacity .15s; }
+.ob-btn:active { transform: scale(.98); }
+.ob-btn.primary { background: var(--accent); color: var(--on-accent, var(--bg)); }
+.ob-btn.ghost { background: none; border-color: var(--border); color: var(--text); }
+.ob-btn.link { background: none; color: var(--text-2); min-height: 44px; }
+.ob-btn.sm { min-height: 40px; padding: 0 4px; }
+.ob-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ob-in { animation: ob-in .28s ease both; }
+.ob-in-back { animation: ob-inb .28s ease both; }
+@keyframes ob-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+@keyframes ob-inb { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+@keyframes ob-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ob, .ob-in, .ob-in-back { animation: none; } .ob-dots i { transition: none; } }
+@media (min-width: 720px) { .ob-inner { justify-content: center; } .ob-card { flex: 0 0 auto; padding: 24px 0 32px; } }
+
+/* Settings profile card */
+.pf { padding: 14px 20px 18px; border-bottom: 1px solid var(--border); }
+.pf-row { display: flex; gap: 8px; }
+.pf-input { flex: 1; min-width: 0; min-height: 44px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 2px;
+  color: var(--text); font: 400 16px var(--font-ui); padding: 0 12px; outline: none; }
+.pf-input:focus { border-color: var(--accent); }
+.pf-input.bad { border-color: var(--red); }
+.pf-save { min-height: 44px; padding: 0 18px; border-radius: 2px; border: 0; background: var(--accent); color: var(--on-accent, var(--bg)); font: 600 15px var(--font-ui); cursor: pointer; }
+.pf-msg { font-size: 13px; margin: 8px 0 0; min-height: 18px; color: var(--text-2); }
+.pf-msg.err { color: var(--red); }
+.pf-msg.ok { color: var(--green); }
+.pf-hint { font-size: 13px; color: var(--text-2); margin: 0 0 10px; }
+
+/* Dashboard greeting */
+.db-greet { padding: 0 20px 18px; }
+.db-greet h1 { font: 700 clamp(22px, 7vw, 28px)/1.1 var(--font-ui); letter-spacing: -.02em; margin: 0 0 4px; overflow-wrap: anywhere; }
+.db-greet p { font-size: 14px; color: var(--text-2); margin: 0; }

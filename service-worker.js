@@ -10,7 +10,7 @@
 
 // Bump APP_VERSION every time you push changes to GitHub. That one edit is
 // what tells installed copies of the app that an update exists.
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.12.0';
 const CACHE_NAME = 'arsa-' + APP_VERSION;
 const APP_SHELL = [
   './',
@@ -21,6 +21,7 @@ const APP_SHELL = [
   './css/session.css',
   './css/screens.css',
   './css/coach.css',
+  './css/onboarding.css',
   './fonts/archivo-latin-400-normal.woff2',
   './fonts/archivo-latin-500-normal.woff2',
   './fonts/archivo-latin-600-normal.woff2',
@@ -30,7 +31,15 @@ const APP_SHELL = [
   './fonts/martian-mono-latin-600-normal.woff2',
   './js/changelog.js',
   './js/coach-kb.js',
+  './js/coach-kb-exercises.js',
+  './js/coach-kb-training.js',
+  './js/coach-kb-body.js',
+  './js/coach-kb-nutrition.js',
+  './js/coach-kb-gym.js',
   './js/coach.js',
+  './js/coach-safety.js',
+  './js/coach-engine.js',
+  './js/onboarding.js',
   './js/splits.js',
   './js/streak-engine.js',
   './js/data.js',

@@ -5,6 +5,24 @@
    ============================================ */
 const CHANGELOG = [
   {
+    version: '1.12.0',
+    notes: [
+      'New first-time welcome and a 5-step tour of the app, with Skip at any point',
+      'Add your name in Settings and the dashboard greets you',
+      'Replay the tour any time from Settings > About'
+    ]
+  },
+  {
+    version: '1.11.0',
+    notes: [
+      'Coach is much smarter: about 130 answers on form, sets and reps, muscles, nutrition, recovery and gym problems',
+      'Understands different ways of asking, typos, and follow-ups like "explain that simply" or "what about dumbbells"',
+      'Asks one useful question when it helps, and remembers your answers during the chat',
+      'Safety first: pain, dizziness and emergency signs always get a safety answer',
+      'Topic buttons, related questions and an offline indicator'
+    ]
+  },
+  {
     version: '1.10.0',
     notes: [
       'Undo for added sets, plus a Remove this set button during a workout',

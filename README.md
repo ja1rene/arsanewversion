@@ -181,7 +181,7 @@ You only need a browser. There is nothing to install.
 
 1. **Download the code**
    ```bash
-   git clone https://github.com/YOUR-USERNAME/YOUR-REPO.git
+   git clone https://github.com/ja1rene/arsanewversion.git
    cd YOUR-REPO
    ```
    (or press **Code → Download ZIP** on GitHub and unzip it)

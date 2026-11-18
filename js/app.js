@@ -23,6 +23,7 @@ const App = {
       this.navigateTo('workouts');
       if (Workouts.restoreDraft()) showToast('Restored your unsaved workout');
     }
+    Onboarding.maybeStart();
     Reminders.checkAndMaybeNotify();
 
     // Ask the browser not to evict saved workouts when storage runs low.
