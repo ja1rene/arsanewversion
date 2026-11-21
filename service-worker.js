@@ -10,8 +10,13 @@
 
 // Bump APP_VERSION every time you push changes to GitHub. That one edit is
 // what tells installed copies of the app that an update exists.
-const APP_VERSION = '1.12.0';
+const APP_VERSION = '1.13.1';
 const CACHE_NAME = 'arsa-' + APP_VERSION;
+// Bundled exercise animations (media/*.gif). Listed in js/media-map.js.
+importScripts('./js/media-map.js');
+// Separate cache for animations people save for offline use. It is NOT
+// versioned, so app updates never delete it.
+const MEDIA_CACHE = 'arsa-media';
 const APP_SHELL = [
   './',
   './index.html',
@@ -22,6 +27,7 @@ const APP_SHELL = [
   './css/screens.css',
   './css/coach.css',
   './css/onboarding.css',
+  './css/media.css',
   './fonts/archivo-latin-400-normal.woff2',
   './fonts/archivo-latin-500-normal.woff2',
   './fonts/archivo-latin-600-normal.woff2',
@@ -39,6 +45,8 @@ const APP_SHELL = [
   './js/coach.js',
   './js/coach-safety.js',
   './js/coach-engine.js',
+  './js/media-map.js',
+  './js/media.js',
   './js/onboarding.js',
   './js/splits.js',
   './js/streak-engine.js',
@@ -66,7 +74,12 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       // cache: 'reload' skips the browser's own HTTP cache (GitHub Pages
       // caches files for ~10 minutes) so a new version really is the new files.
-      .then((cache) => cache.addAll(APP_SHELL.map((u) => new Request(u, { cache: 'reload' }))))
+      .then((cache) =>
+        cache.addAll(APP_SHELL.map((u) => new Request(u, { cache: 'reload' })))
+          // Animations are optional: a missing file must never break the install.
+          .then(() => Promise.all(Object.values(EXERCISE_MEDIA).map((u) =>
+            cache.add(new Request('./' + u, { cache: 'reload' })).catch(() => {}))))
+      )
   );
   // No skipWaiting here: the new version waits until the person taps
   // "Reload" in the app, so it never swaps files under a workout in progress.
@@ -80,7 +93,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+        keys.filter((key) => key !== CACHE_NAME && key !== MEDIA_CACHE).map((key) => caches.delete(key))
       )
     ).then(() => self.clients.claim())
   );
@@ -89,6 +102,12 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Only handle GET requests
   if (event.request.method !== 'GET') return;
+
+  // Videos ask for byte ranges; answer them from the cache so MP4s play offline.
+  if (event.request.headers.has('range')) {
+    event.respondWith(rangeResponse(event.request));
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
@@ -116,6 +135,24 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+async function rangeResponse(req) {
+  const cached = await caches.match(req.url);
+  if (!cached || cached.type === 'opaque') return cached || fetch(req);
+  const buf = await cached.arrayBuffer();
+  const m = /bytes=(\d*)-(\d*)/.exec(req.headers.get('range') || '');
+  let start = m && m[1] ? parseInt(m[1], 10) : 0;
+  let end = m && m[2] ? parseInt(m[2], 10) : buf.byteLength - 1;
+  end = Math.min(end, buf.byteLength - 1);
+  return new Response(buf.slice(start, end + 1), {
+    status: 206,
+    headers: {
+      'Content-Type': cached.headers.get('Content-Type') || 'video/mp4',
+      'Content-Range': 'bytes ' + start + '-' + end + '/' + buf.byteLength,
+      'Content-Length': String(end - start + 1)
+    }
+  });
+}
 
 // Best-effort background reminder check. Only fires on browsers that
 // support the Periodic Background Sync API (Chrome/Android, installed

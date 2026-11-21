@@ -79,6 +79,7 @@ const Library = {
       if (t.dataset.id) { this._detailId = t.dataset.id; return this.render(); }
       if (t.id === 'btn-detail-back') { this._detailId = null; return this.render(); }
       if (t.id === 'btn-delete-custom-ex') return this._confirmDeleteCustom();
+      if (t.id === 'btn-edit-media') return this._openMediaEditor();
     };
 
     screen.oninput = (e) => {
@@ -98,11 +99,8 @@ const Library = {
     const list = (items) => `<ul class="lb-list">${items.map(t => `<li>${esc(t)}</li>`).join('')}</ul>`;
     const section = (title, body) => `<div class="pg-sec"><span>${title}</span></div>${body}`;
 
-    const media = ex.animationUrl
-      ? `<div class="lb-media">${/\.(mp4|webm)$/i.test(ex.animationUrl)
-          ? `<video src="${esc(ex.animationUrl)}" autoplay loop muted playsinline></video>`
-          : `<img src="${esc(ex.animationUrl)}" alt="${esc(ex.name)}">`}</div>`
-      : '';
+    const media = ExMedia.html(ex) +
+      (ex.custom ? '<div class="lb-mbar"><button class="lb-mbtn" type="button" id="btn-edit-media">Change animation</button></div>' : '');
 
     screen.innerHTML = `
       <button class="back-btn" id="btn-detail-back" type="button">
@@ -132,6 +130,7 @@ const Library = {
 
       ${ex.custom ? `<div class="form-section mt-8" style="padding-bottom:28px;"><button class="bd-delete" type="button" id="btn-delete-custom-ex">Delete custom exercise</button></div>` : '<div style="height:28px;"></div>'}
     `;
+    ExMedia.hydrate(screen);
   },
 
   _confirmDeleteCustom() {
@@ -147,6 +146,7 @@ const Library = {
     `);
     document.getElementById('lib-del-cancel').addEventListener('click', closeModal);
     document.getElementById('lib-del-confirm').addEventListener('click', () => {
+      ExMedia.remove(ex);
       Store.deleteCustomExercise(ex.id);
       closeModal();
       this._detailId = null;
@@ -177,10 +177,7 @@ const Library = {
           <label class="input-label" for="ce-notes">Your notes</label>
           <textarea class="input" id="ce-notes" placeholder="Optional" rows="2"></textarea>
         </div>
-        <div class="input-group">
-          <label class="input-label" for="ce-animation">Image or video link</label>
-          <input type="url" class="input" id="ce-animation" placeholder="https://... (GIF, image or MP4). Optional" autocomplete="off">
-        </div>
+        ${ExMedia.formHtml(null)}
       </div>
       <div class="modal-actions">
         <button class="btn btn-outline" id="ce-cancel">Cancel</button>
@@ -188,19 +185,47 @@ const Library = {
       </div>
     `, { sticky: true });
 
+    const media = ExMedia.bind(null);
     document.getElementById('ce-cancel').addEventListener('click', closeModal);
-    document.getElementById('ce-save').addEventListener('click', () => {
+    document.getElementById('ce-save').addEventListener('click', async () => {
       const name = document.getElementById('ce-name').value.trim();
       if (!name) { showToast('Enter an exercise name'); return; }
-      Store.addCustomExercise({
+      await media.settled();
+      if (media.blocked()) { showToast('Fix the animation link or clear it'); return; }
+      const e = Store.addCustomExercise({
         name,
         muscle: document.getElementById('ce-muscle').value,
         instructions: document.getElementById('ce-instructions').value.trim(),
-        notes: document.getElementById('ce-notes').value.trim(),
-        animationUrl: document.getElementById('ce-animation').value.trim()
+        notes: document.getElementById('ce-notes').value.trim()
       });
+      let note = '';
+      try { note = await ExMedia.commit(e.id, media.collect()); } catch (err) { note = 'Exercise added, but the animation could not be saved.'; }
       closeModal();
-      showToast('Exercise added');
+      showToast(note || 'Exercise added', note ? 4500 : undefined);
+      this.render();
+    });
+  },
+
+  _openMediaEditor() {
+    const ex = Store.getExerciseById(this._detailId);
+    if (!ex || !ex.custom) return;
+    openModal(`
+      <div class="modal-title">Change animation</div>
+      <div class="modal-body">${ExMedia.formHtml(ex)}</div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" id="md-cancel">Cancel</button>
+        <button class="btn btn-primary" id="md-save">Save</button>
+      </div>
+    `, { sticky: true });
+    const media = ExMedia.bind(ex);
+    document.getElementById('md-cancel').addEventListener('click', closeModal);
+    document.getElementById('md-save').addEventListener('click', async () => {
+      await media.settled();
+      if (media.blocked()) { showToast('Fix the animation link or clear it'); return; }
+      let note = '';
+      try { note = await ExMedia.commit(ex.id, media.collect()); } catch (err) { note = 'The animation could not be saved.'; }
+      closeModal();
+      showToast(note || 'Animation updated', note ? 4500 : undefined);
       this.render();
     });
   }

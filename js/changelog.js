@@ -5,6 +5,21 @@
    ============================================ */
 const CHANGELOG = [
   {
+    version: '1.13.1',
+    notes: [
+      'All 22 built-in exercises now have a looping demonstration GIF in the Library',
+      'The GIFs are saved on your device after the update, so they also play offline'
+    ]
+  },
+  {
+    version: '1.13.0',
+    notes: [
+      'Exercises can show a looping GIF, image or short video in the Library',
+      'Add one with a link or upload it from your phone, and keep it for offline use',
+      'A clear placeholder shows when an animation is missing, broken or not saved offline'
+    ]
+  },
+  {
     version: '1.12.0',
     notes: [
       'New first-time welcome and a 5-step tour of the app, with Skip at any point',

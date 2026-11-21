@@ -143,6 +143,9 @@ const Store = {
       muscle: ex.muscle || 'Other',
       secondaryMuscles: ex.secondaryMuscles || [],
       animationUrl: ex.animationUrl || '',
+      mediaLocal: false,   // true when a file chosen on this device is stored in IndexedDB
+      mediaType: '',
+      mediaSaved: false,   // true when a linked file was copied for offline use
       mistakes: ex.mistakes || [],
       tips: ex.tips || '',
       custom: true

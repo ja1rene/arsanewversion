@@ -1,0 +1,28 @@
+/* ARSA — exercise animation, placeholder and media form */
+.lb-media { margin: 12px 20px 0; border: 1px solid var(--border); border-radius: 2px; overflow: hidden; background: var(--bg-2); }
+.lb-media .lb-mi, .md-prev .lb-mi { display: block; width: 100%; max-height: 56vh; object-fit: contain; background: var(--bg-2); }
+.lb-ph { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; padding: 28px 20px; color: var(--text-2); min-height: 180px; }
+.lb-ph-art { width: 120px; height: 56px; margin-bottom: 8px; }
+.lb-ph-art .acc { stroke: var(--accent); }
+.lb-ph-bar { animation: ph-lift 1.4s ease-in-out infinite alternate; transform-origin: center; transform-box: fill-box; }
+@keyframes ph-lift { from { transform: translateY(5px); } to { transform: translateY(-5px); } }
+.lb-ph-t { font: 600 15px var(--font-ui); color: var(--text); }
+.lb-ph-s { font-size: 13px; max-width: 30ch; }
+@media (prefers-reduced-motion: reduce) { .lb-ph-bar { animation: none; } }
+.lb-mbar { margin: 8px 20px 0; }
+.lb-mbtn { background: none; border: 0; padding: 8px 0; min-height: 40px; color: var(--accent); font: 600 14px var(--font-ui); cursor: pointer; }
+:root[data-theme="light"] .lb-mbtn { text-decoration: underline; }
+
+.md { gap: 8px; }
+.md-or { display: flex; align-items: center; gap: 10px; color: var(--text-3); font-size: 12px; }
+.md-or::before, .md-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.md-up { display: flex; align-items: center; justify-content: center; min-height: 44px; cursor: pointer; }
+.md-prev { border: 1px solid var(--border); border-radius: 2px; overflow: hidden; }
+.md-prev[hidden], .md-chk[hidden] { display: none; }
+.md-status { font-size: 13px; color: var(--text-2); line-height: 1.4; margin: 0; }
+.md-status:empty { display: none; }
+.md-status.err { color: var(--red); }
+.md-status.ok { color: var(--green); }
+.md-chk { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--text); }
+.md-chk input { width: 18px; height: 18px; accent-color: var(--accent); }
+.md-remove { align-self: flex-start; background: none; border: 0; padding: 8px 0; min-height: 40px; color: var(--red); font: 600 14px var(--font-ui); cursor: pointer; }
